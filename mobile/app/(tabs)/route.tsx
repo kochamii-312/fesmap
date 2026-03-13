@@ -34,6 +34,8 @@ import { getCurrentUserId } from '../../src/services/auth';
 import { searchTransitRoute, enhanceTransitPolylines } from '../../src/services/transitRouter';
 import { geocode } from '../../src/services/geocoding';
 import { GOOGLE_MAPS_API_KEY } from '../../src/components/MapViewWrapper';
+import { loadUnifiedNeeds } from '../../src/services/userNeeds';
+import { fetchPersonalizedSpots, ScoredSpot } from '../../src/services/nearbySpots';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const MAP_HEIGHT = SCREEN_HEIGHT * 0.35;
@@ -505,7 +507,7 @@ function generateWaypointId(): string {
 }
 
 export default function RouteScreen() {
-  const params = useLocalSearchParams<{ destination?: string }>();
+  const params = useLocalSearchParams<{ destination?: string; originLat?: string; originLng?: string }>();
 
   // 入力状態
   const [originText, setOriginText] = useState('現在地');
@@ -532,6 +534,10 @@ export default function RouteScreen() {
 
   // WebView DirectionsService用
   const [directionsReq, setDirectionsReq] = useState<DirectionsRequest | undefined>(undefined);
+
+  // 目的地周辺おすすめスポット
+  const [recommendedSpots, setRecommendedSpots] = useState<ScoredSpot[]>([]);
+  const [showSpots, setShowSpots] = useState(true);
 
   const lastParamDestRef = useRef<string | null>(null);
 
@@ -1180,9 +1186,19 @@ export default function RouteScreen() {
     if (params.destination && params.destination !== lastParamDestRef.current) {
       lastParamDestRef.current = params.destination;
       setDestinationText(params.destination);
+
+      // ホーム画面から現在地座標が渡されている場合はセット
+      if (params.originLat && params.originLng) {
+        const lat = parseFloat(params.originLat);
+        const lng = parseFloat(params.originLng);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          setOriginCoords({ lat, lng });
+        }
+      }
+
       performSearch(params.destination);
     }
-  }, [params.destination, performSearch]);
+  }, [params.destination, params.originLat, params.originLng, performSearch]);
 
   // モード変更時に再検索（結果が既にある場合のみ）
   const prevModeRef = useRef(selectedMode);
@@ -1195,6 +1211,27 @@ export default function RouteScreen() {
     }
   }, [selectedMode, destinationText, performSearch]);
 
+  // 目的地周辺のおすすめスポットを取得（ルート検索完了後）
+  useEffect(() => {
+    if (!destCoords || !hasResults) {
+      setRecommendedSpots([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const needs = await loadUnifiedNeeds();
+        const spots = await fetchPersonalizedSpots(destCoords, needs);
+        if (!cancelled) {
+          setRecommendedSpots(spots);
+        }
+      } catch {
+        // スポット取得失敗時は空のまま
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [destCoords?.lat, destCoords?.lng, hasResults]);
+
   // 検索結果のクリア
   const clearResults = useCallback(() => {
     setDestinationText('');
@@ -1206,6 +1243,8 @@ export default function RouteScreen() {
     setDestCoords(null);
     setErrorMessage(null);
     setTransitWaypoints([]);
+    setRecommendedSpots([]);
+    setShowSpots(true);
     setWaypoints((prev) => prev.map((wp) => ({ ...wp, coords: null })));
   }, []);
 
@@ -1702,6 +1741,14 @@ export default function RouteScreen() {
                 mode: 'transit' as const,
                 label: tw.title,
               })),
+              // おすすめスポットマーカー
+              ...(showSpots ? recommendedSpots.map((spot) => ({
+                latitude: spot.location.lat,
+                longitude: spot.location.lng,
+                title: spot.name,
+                label: spot.relevanceReason || spot.category,
+                mode: 'walking' as const,
+              })) : []),
             ]}
             accessibilityLabel="ルート地図"
           />
@@ -1909,6 +1956,67 @@ export default function RouteScreen() {
           <Text style={styles.searchButtonText}>検索</Text>
         </TouchableOpacity>
       </View>
+
+      {/* 目的地周辺おすすめスポット */}
+      {recommendedSpots.length > 0 && (
+        <View>
+          <View style={styles.spotHeaderRow}>
+            <Text style={styles.spotSectionTitle}>あなたへのおすすめ</Text>
+            <TouchableOpacity
+              onPress={() => setShowSpots(!showSpots)}
+              style={styles.spotToggle}
+              accessibilityLabel={showSpots ? 'スポットを非表示' : 'スポットを表示'}
+            >
+              <Text style={styles.spotToggleText}>
+                {showSpots ? '非表示' : '表示'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          {showSpots && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.spotScrollContent}
+            >
+              {recommendedSpots.map((spot) => (
+                <View key={spot.spotId} style={styles.spotCard}>
+                  <Text style={styles.spotCardName} numberOfLines={1}>{spot.name}</Text>
+                  <Text style={styles.spotCardReason} numberOfLines={1}>
+                    {spot.relevanceReason}
+                  </Text>
+                  <Text style={styles.spotCardDistance}>
+                    {spot.distanceMeters >= 1000
+                      ? `${(spot.distanceMeters / 1000).toFixed(1)}km`
+                      : `${Math.round(spot.distanceMeters)}m`}
+                  </Text>
+                  <View style={styles.spotCardScoreRow}>
+                    <View
+                      style={[
+                        styles.spotCardScoreBadge,
+                        { backgroundColor: spot.accessibilityScore >= 80 ? '#E8F5E9' : spot.accessibilityScore >= 50 ? '#FFF3E0' : '#FFEBEE' },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.spotCardScore,
+                          { color: spot.accessibilityScore >= 80 ? '#2E7D32' : spot.accessibilityScore >= 50 ? '#E65100' : '#C62828' },
+                        ]}
+                      >
+                        {spot.accessibilityScore}
+                      </Text>
+                    </View>
+                    <View style={styles.spotCardRelevanceBadge}>
+                      <Text style={styles.spotCardRelevance}>
+                        {spot.relevanceScore}%
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      )}
 
       {/* 結果エリア */}
       {isSearching ? (
@@ -2536,5 +2644,89 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 15,
     fontWeight: '700',
+  },
+
+  // おすすめスポット
+  spotHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  spotSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  spotToggle: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#E8F5E9',
+  },
+  spotToggleText: {
+    fontSize: 12,
+    color: '#2E7D32',
+    fontWeight: '500',
+  },
+  spotScrollContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 10,
+  },
+  spotCard: {
+    width: 140,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  spotCardName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 2,
+  },
+  spotCardReason: {
+    fontSize: 11,
+    color: '#007AFF',
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  spotCardDistance: {
+    fontSize: 11,
+    color: '#999',
+    marginBottom: 6,
+  },
+  spotCardScoreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  spotCardScoreBadge: {
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  spotCardScore: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  spotCardRelevanceBadge: {
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    backgroundColor: '#E3F2FD',
+  },
+  spotCardRelevance: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1565C0',
   },
 });

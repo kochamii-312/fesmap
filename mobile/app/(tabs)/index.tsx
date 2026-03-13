@@ -8,11 +8,13 @@ import {
   ScrollView,
   ActivityIndicator,
   Platform,
+  Alert,
 } from 'react-native';
 import MapView, { Marker, Region } from '../../src/components/MapViewWrapper';
 import { useRouter } from 'expo-router';
 import { SpotSummary } from '../../src/types';
-import { getNearbySpots, getPlaceSuggestions } from '../../src/services/api';
+import { getNearbySpots, getPlaceSuggestions, reverseGeocodeLocation } from '../../src/services/api';
+import * as Location from 'expo-location';
 
 // デフォルト位置（東京駅付近）
 const DEFAULT_REGION: Region = {
@@ -67,40 +69,41 @@ async function fetchPlaceSuggestions(input: string): Promise<PlaceSuggestion[]> 
 }
 
 // モックデータ（API未接続時のフォールバック）
-function mockNearbySpots(): SpotSummary[] {
+// 渡された座標の周辺にスポットを生成する
+function mockNearbySpots(centerLat: number, centerLng: number): SpotSummary[] {
   return [
     {
       spotId: 'spot_nearby_1',
-      name: 'バリアフリートイレ 丸の内',
+      name: 'バリアフリートイレ',
       category: 'restroom',
-      location: { lat: 35.6815, lng: 139.7675 },
+      location: { lat: centerLat + 0.0003, lng: centerLng + 0.0004 },
       distanceMeters: 50,
       accessibilityScore: 95,
       wheelchairAccessible: true,
     },
     {
       spotId: 'spot_nearby_2',
-      name: '休憩ベンチ 日比谷通り',
+      name: '休憩ベンチ',
       category: 'rest_area',
-      location: { lat: 35.6808, lng: 139.7665 },
+      location: { lat: centerLat - 0.0004, lng: centerLng - 0.0006 },
       distanceMeters: 120,
       accessibilityScore: 80,
       wheelchairAccessible: true,
     },
     {
       spotId: 'spot_nearby_3',
-      name: 'カフェ アクセス',
+      name: 'カフェ',
       category: 'cafe',
-      location: { lat: 35.682, lng: 139.768 },
+      location: { lat: centerLat + 0.0008, lng: centerLng + 0.0009 },
       distanceMeters: 200,
       accessibilityScore: 72,
       wheelchairAccessible: false,
     },
     {
       spotId: 'spot_nearby_4',
-      name: 'エレベーター 地下鉄出口',
+      name: 'エレベーター',
       category: 'elevator',
-      location: { lat: 35.6805, lng: 139.7668 },
+      location: { lat: centerLat - 0.0007, lng: centerLng - 0.0003 },
       distanceMeters: 80,
       accessibilityScore: 88,
       wheelchairAccessible: true,
@@ -113,11 +116,16 @@ export default function HomeScreen() {
   const [searchText, setSearchText] = useState('');
   const [nearbySpots, setNearbySpots] = useState<SpotSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [region, setRegion] = useState<Region>(DEFAULT_REGION);
+  const [initialRegion, setInitialRegion] = useState<Region>(DEFAULT_REGION);
+  const initialRegionSetRef = useRef(false); // initialRegion は一度だけ設定
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [userLocation, setUserLocation] = useState<Location.LocationObjectCoords | null>(null);
+  const [locationReady, setLocationReady] = useState(false);
+  const [currentAddress, setCurrentAddress] = useState<string | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mapRef = useRef<any>(null);
 
   // 周辺スポット取得
   const fetchNearbySpots = useCallback(async (lat: number, lng: number) => {
@@ -126,17 +134,16 @@ export default function HomeScreen() {
       const spots = await getNearbySpots(lat, lng);
       setNearbySpots(spots);
     } catch {
-      // API未接続時はモックデータを使用
-      setNearbySpots(mockNearbySpots());
+      // API未接続時は現在地周辺のモックデータを使用
+      setNearbySpots(mockNearbySpots(lat, lng));
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // マップ移動時のデバウンス付き再取得
+  // マップ移動時のデバウンス付き再取得（initialRegion は変更しない）
   const handleRegionChangeComplete = useCallback(
     (newRegion: Region) => {
-      setRegion(newRegion);
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
@@ -147,8 +154,63 @@ export default function HomeScreen() {
     [fetchNearbySpots],
   );
 
+  // 逆ジオコーディングで住所を取得
+  const fetchAddress = useCallback(async (lat: number, lng: number) => {
+    try {
+      const address = await reverseGeocodeLocation(lat, lng);
+      setCurrentAddress(address);
+    } catch {
+      // API失敗時は expo-location のローカル逆ジオコーディングを試行
+      try {
+        const results = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+        if (results.length > 0) {
+          const r = results[0];
+          const parts = [r.region, r.city, r.district, r.street, r.name].filter(Boolean);
+          setCurrentAddress(parts.join(' ') || `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+        }
+      } catch {
+        setCurrentAddress(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+      }
+    }
+  }, []);
+
+  // 現在地を取得してマップを移動
   useEffect(() => {
-    fetchNearbySpots(DEFAULT_REGION.latitude, DEFAULT_REGION.longitude);
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+
+        if (status !== 'granted') {
+          setLocationReady(true);
+          fetchNearbySpots(DEFAULT_REGION.latitude, DEFAULT_REGION.longitude);
+          return;
+        }
+
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        const { latitude, longitude } = location.coords;
+        setUserLocation(location.coords);
+        fetchAddress(latitude, longitude);
+
+        // initialRegion は一度だけ設定（以降のマップ操作で上書きしない）
+        if (!initialRegionSetRef.current) {
+          initialRegionSetRef.current = true;
+          setInitialRegion({
+            latitude,
+            longitude,
+            latitudeDelta: 0.008,
+            longitudeDelta: 0.008,
+          });
+        }
+        setLocationReady(true);
+        fetchNearbySpots(latitude, longitude);
+      } catch {
+        setLocationReady(true);
+        fetchNearbySpots(DEFAULT_REGION.latitude, DEFAULT_REGION.longitude);
+      }
+    })();
+
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
@@ -157,7 +219,7 @@ export default function HomeScreen() {
         clearTimeout(suggestTimerRef.current);
       }
     };
-  }, [fetchNearbySpots]);
+  }, [fetchNearbySpots, fetchAddress]);
 
   // 検索テキスト変更時にサジェスト取得
   const handleSearchTextChange = useCallback((text: string) => {
@@ -183,7 +245,12 @@ export default function HomeScreen() {
       const trimmed = (destination || searchText).trim();
       if (!trimmed) return;
       setShowSuggestions(false);
-      router.navigate(`/(tabs)/route?destination=${encodeURIComponent(trimmed)}`);
+      const params = new URLSearchParams({ destination: trimmed });
+      if (userLocation) {
+        params.set('originLat', userLocation.latitude.toString());
+        params.set('originLng', userLocation.longitude.toString());
+      }
+      router.navigate(`/(tabs)/route?${params.toString()}`);
     },
     [searchText, router],
   );
@@ -209,11 +276,13 @@ export default function HomeScreen() {
     <View style={styles.container}>
       {/* 地図 */}
       <MapView
+        ref={mapRef}
         style={styles.map}
-        initialRegion={DEFAULT_REGION}
+        initialRegion={initialRegion}
         onRegionChangeComplete={handleRegionChangeComplete}
         showsUserLocation
         showsMyLocationButton
+        userLocationCoords={userLocation ? { latitude: userLocation.latitude, longitude: userLocation.longitude } : undefined}
         accessibilityLabel="地図"
       >
         {nearbySpots.map((spot) => (
@@ -312,6 +381,55 @@ export default function HomeScreen() {
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* 現在地情報 */}
+      {userLocation && currentAddress && (
+        <View style={styles.locationInfoContainer}>
+          <Text style={styles.locationInfoLabel}>現在地</Text>
+          <Text style={styles.locationInfoAddress} numberOfLines={2}>
+            {currentAddress}
+          </Text>
+          <Text style={styles.locationInfoCoords}>
+            {userLocation.latitude.toFixed(6)}, {userLocation.longitude.toFixed(6)}
+          </Text>
+        </View>
+      )}
+
+      {/* 現在地ボタン */}
+      {userLocation && (
+        <TouchableOpacity
+          style={styles.currentLocationButton}
+          onPress={async () => {
+            // 最新の位置を再取得
+            try {
+              const location = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.Balanced,
+              });
+              const { latitude, longitude } = location.coords;
+              setUserLocation(location.coords);
+              fetchAddress(latitude, longitude);
+              mapRef.current?.injectJavaScript(`
+                map.panTo({lat: ${latitude}, lng: ${longitude}});
+                map.setZoom(16);
+                true;
+              `);
+              fetchNearbySpots(latitude, longitude);
+            } catch {
+              // 再取得失敗時は既存の位置を使用
+              mapRef.current?.injectJavaScript(`
+                map.panTo({lat: ${userLocation.latitude}, lng: ${userLocation.longitude}});
+                map.setZoom(16);
+                true;
+              `);
+              fetchNearbySpots(userLocation.latitude, userLocation.longitude);
+            }
+          }}
+          accessibilityLabel="現在地に移動"
+          accessibilityHint="現在地を再取得して地図を移動します"
+        >
+          <Text style={styles.currentLocationIcon}>{'\u{1F4CD}'}</Text>
+        </TouchableOpacity>
+      )}
 
       {/* 周辺スポット */}
       {isLoading ? (
@@ -551,5 +669,61 @@ const styles = StyleSheet.create({
   spotDistance: {
     fontSize: 11,
     color: '#999',
+  },
+
+  // 現在地情報
+  locationInfoContainer: {
+    position: 'absolute',
+    bottom: 250,
+    left: 16,
+    right: 72,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 12,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 4,
+    zIndex: 50,
+  },
+  locationInfoLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#007AFF',
+    marginBottom: 4,
+  },
+  locationInfoAddress: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    lineHeight: 20,
+  },
+  locationInfoCoords: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 4,
+  },
+
+  // 現在地ボタン
+  currentLocationButton: {
+    position: 'absolute',
+    bottom: 200,
+    right: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
+    zIndex: 50,
+  },
+  currentLocationIcon: {
+    fontSize: 22,
   },
 });

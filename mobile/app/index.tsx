@@ -7,7 +7,9 @@ export default function Index() {
   const [authState, setAuthState] = useState<boolean | null>(null);
 
   useEffect(() => {
-    isAuthenticated().then(setAuthState);
+    isAuthenticated()
+      .then(setAuthState)
+      .catch(() => setAuthState(false));
   }, []);
 
   if (authState === null) {
@@ -18,7 +20,8 @@ export default function Index() {
     );
   }
 
-  return <Redirect href={authState ? '/(tabs)' : '/login'} />;
+  // 認証状態に関わらず、タブ画面に遷移（現在地取得の動作確認用）
+  return <Redirect href="/(tabs)" />;
 }
 
 const styles = StyleSheet.create({

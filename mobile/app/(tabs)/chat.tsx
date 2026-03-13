@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { ChatMessage, ChatResponse } from '../../src/types';
 import { sendChat } from '../../src/services/api';
 import { getCurrentUserId } from '../../src/services/auth';
+import { saveChatNeeds, clearChatNeeds } from '../../src/services/userNeeds';
 
 interface DisplayMessage {
   id: string;
@@ -557,6 +558,13 @@ export default function ChatScreen() {
         setSuggestedAction(response.suggestedAction);
       }
 
+      // チャットから抽出されたニーズをAsyncStorageに保存（おすすめスポット等で活用）
+      if (response.extractedNeeds && Object.keys(response.extractedNeeds).length > 0) {
+        saveChatNeeds(response.extractedNeeds).catch((err) =>
+          console.warn('[Chat] ニーズ保存失敗:', err)
+        );
+      }
+
       setIsLoading(false);
     },
     [inputText, isLoading, messages],
@@ -566,6 +574,7 @@ export default function ChatScreen() {
     setMessages([]);
     setSuggestedAction(undefined);
     setInputText('');
+    clearChatNeeds().catch(() => {});
   }, []);
 
   const renderMessage = useCallback(({ item }: { item: DisplayMessage }) => {

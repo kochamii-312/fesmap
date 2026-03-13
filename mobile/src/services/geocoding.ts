@@ -5,6 +5,7 @@
 
 import { LatLng } from '../types';
 import { geocodeAddress, reverseGeocodeLocation } from './api';
+import * as Location from 'expo-location';
 
 // Nominatim APIのベースURL（フォールバック用、APIキー不要）
 const NOMINATIM_BASE_URL = 'https://nominatim.openstreetmap.org';
@@ -181,6 +182,22 @@ async function reverseGeocodeWithNominatim(lat: number, lng: number): Promise<st
  */
 export async function geocode(placeName: string): Promise<LatLng> {
   const trimmed = placeName.trim();
+
+  // 「現在地」の場合はGPSから実際の位置を取得
+  if (trimmed === '現在地') {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        return { lat: location.coords.latitude, lng: location.coords.longitude };
+      }
+    } catch {
+      // GPS取得失敗時はデフォルト値（東京駅）にフォールバック
+    }
+    return KNOWN_PLACES['現在地'];
+  }
 
   // 既知の地名はキャッシュから返す
   if (KNOWN_PLACES[trimmed]) {

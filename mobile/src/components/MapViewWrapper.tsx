@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useCallback, useRef, useMemo, forwardRef, useImperativeHandle, useEffect } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { WebView } from 'react-native-webview';
 
@@ -95,11 +95,13 @@ export type DirectionsRequest = {
 type MapViewProps = {
   style?: ViewStyle;
   initialRegion?: Region;
+  region?: Region; // 動的に地図の中心を移動する
   onRegionChangeComplete?: (region: Region) => void;
   onRouteSelect?: (routeId: string) => void;
   onDirectionsResult?: (result: DirectionsResult) => void;
   showsUserLocation?: boolean;
   showsMyLocationButton?: boolean;
+  userLocationCoords?: { latitude: number; longitude: number }; // 既知の現在地座標（GPS取得済み）
   accessibilityLabel?: string;
   routes?: RouteData[];
   originMarker?: { latitude: number; longitude: number; title?: string };
@@ -228,6 +230,7 @@ function buildMapHtml(
   fitToRoute?: boolean,
   waypointMarkers?: WaypointMarker[],
   directionsRequest?: DirectionsRequest,
+  userLocationCoords?: { latitude: number; longitude: number },
 ): string {
   const markersJs = markers
     .map(
@@ -500,25 +503,73 @@ function buildMapHtml(
       ${
         showsUserLocation
           ? `
+      // 現在地の青い丸を表示する関数
+      function showUserLocationMarker(userPos) {
+        // 外側のパルスリング（アニメーション）
+        var pulseCircle = new google.maps.Circle({
+          center: userPos,
+          radius: 30,
+          map: map,
+          fillColor: '#4285F4',
+          fillOpacity: 0.15,
+          strokeColor: '#4285F4',
+          strokeOpacity: 0.3,
+          strokeWeight: 1,
+          zIndex: 998,
+        });
+
+        // 内側の青い丸（現在地マーカー）
+        new google.maps.Marker({
+          position: userPos,
+          map: map,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: '#4285F4',
+            fillOpacity: 1,
+            strokeColor: '#FFFFFF',
+            strokeWeight: 3,
+          },
+          title: '現在地',
+          zIndex: 999,
+        });
+
+        // パルスアニメーション
+        var growing = true;
+        setInterval(function() {
+          var r = pulseCircle.getRadius();
+          if (growing) {
+            r += 2;
+            if (r >= 60) growing = false;
+          } else {
+            r -= 2;
+            if (r <= 30) growing = true;
+          }
+          pulseCircle.setRadius(r);
+        }, 50);
+      }
+
+      ${userLocationCoords
+        ? `
+      // 既知の座標を使って即座に現在地を表示・ズーム
+      (function() {
+        var userPos = { lat: ${userLocationCoords.latitude}, lng: ${userLocationCoords.longitude} };
+        showUserLocationMarker(userPos);
+        map.panTo(userPos);
+        map.setZoom(16);
+      })();
+      `
+        : `
+      // GPS座標未取得の場合はWebView内で取得を試みる
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(function(pos) {
           var userPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-          new google.maps.Marker({
-            position: userPos,
-            map: map,
-            icon: {
-              path: google.maps.SymbolPath.CIRCLE,
-              scale: 8,
-              fillColor: '#4285F4',
-              fillOpacity: 1,
-              strokeColor: '#FFFFFF',
-              strokeWeight: 2,
-            },
-            title: 'Your location',
-            zIndex: 999,
-          });
+          showUserLocationMarker(userPos);
+          map.panTo(userPos);
+          map.setZoom(16);
         });
       }
+      `}
       `
           : ''
       }
@@ -720,11 +771,13 @@ export function Marker(_props: MarkerProps) {
 const MapViewWrapper = forwardRef<WebView, MapViewProps>(function MapViewWrapper({
   style,
   initialRegion,
+  region: controlledRegion,
   onRegionChangeComplete,
   onRouteSelect,
   onDirectionsResult,
   showsUserLocation = false,
   showsMyLocationButton = false,
+  userLocationCoords,
   accessibilityLabel,
   routes,
   originMarker,
@@ -739,6 +792,20 @@ const MapViewWrapper = forwardRef<WebView, MapViewProps>(function MapViewWrapper
 
   // 親コンポーネントから WebView ref にアクセスできるようにする
   useImperativeHandle(ref, () => webViewRef.current as WebView);
+
+  // controlledRegion が変わったら地図を移動
+  useEffect(() => {
+    if (controlledRegion && webViewRef.current) {
+      const zoom = getZoomLevel(controlledRegion.latitudeDelta);
+      webViewRef.current.injectJavaScript(`
+        if (typeof map !== 'undefined') {
+          map.panTo({lat: ${controlledRegion.latitude}, lng: ${controlledRegion.longitude}});
+          map.setZoom(${zoom});
+        }
+        true;
+      `);
+    }
+  }, [controlledRegion?.latitude, controlledRegion?.longitude]);
 
   const region = initialRegion || {
     latitude: 35.6812,
@@ -772,6 +839,7 @@ const MapViewWrapper = forwardRef<WebView, MapViewProps>(function MapViewWrapper
         fitToRoute,
         waypointMarkers,
         directionsRequest,
+        userLocationCoords,
       ),
     [
       region.latitude,
@@ -789,6 +857,8 @@ const MapViewWrapper = forwardRef<WebView, MapViewProps>(function MapViewWrapper
       destinationMarker?.longitude,
       fitToRoute,
       JSON.stringify(directionsRequest),
+      userLocationCoords?.latitude,
+      userLocationCoords?.longitude,
     ],
   );
 

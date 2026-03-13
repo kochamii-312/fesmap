@@ -23,15 +23,7 @@ import {
 } from '../../src/types';
 import { saveProfile as saveProfileApi } from '../../src/services/api';
 import { getCurrentUserId, signOut } from '../../src/services/auth';
-
-// AsyncStorage keys
-const STORAGE_KEYS = {
-  mobilityType: 'profile_mobilityType',
-  companions: 'profile_companions',
-  maxDistance: 'profile_maxDistance',
-  avoidConditions: 'profile_avoidConditions',
-  preferConditions: 'profile_preferConditions',
-} as const;
+import { STORAGE_KEYS } from '../../src/constants/storageKeys';
 
 const MOBILITY_TYPES: MobilityType[] = ['wheelchair', 'stroller', 'cane', 'walk', 'other'];
 const COMPANIONS: Companion[] = ['child', 'elderly', 'disability'];
