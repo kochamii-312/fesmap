@@ -197,6 +197,9 @@ struct HomeView: View {
                 locationManager.stopUpdating()
             }
         }
+        .onTapGesture {
+            hideKeyboard()
+        }
     }
 
     // 現在地にカメラを移動
@@ -227,6 +230,10 @@ struct HomeView: View {
                 longitudinalMeters: 500
             ))
         }
+    }
+
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }
 

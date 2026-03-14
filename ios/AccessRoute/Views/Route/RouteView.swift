@@ -100,6 +100,9 @@ struct RouteView: View {
                 }
             }
         }
+        .onTapGesture {
+            hideKeyboard()
+        }
     }
 
     // 検索実行
@@ -124,6 +127,10 @@ struct RouteView: View {
         let duration = AccessibilityHelpers.durationText(minutes: route.durationMinutes)
         let warnings = route.warnings.isEmpty ? "" : "。注意: \(route.warnings.joined(separator: "、"))"
         return "\(score)、距離\(distance)、所要時間\(duration)\(warnings)"
+    }
+
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }
 
