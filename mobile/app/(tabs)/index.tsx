@@ -99,13 +99,37 @@ function mockNearbySpots(centerLat: number, centerLng: number): SpotSummary[] {
       accessibilityScore: 72,
       wheelchairAccessible: false,
     },
+  ];
+}
+
+// おすすめスポットのモックデータ
+function mockRecommendedSpots(): SpotSummary[] {
+  return [
     {
-      spotId: 'spot_nearby_4',
-      name: 'エレベーター',
+      spotId: 'rec_1',
+      name: '丸の内バリアフリー広場',
+      category: 'park',
+      location: { lat: 35.6818, lng: 139.7660 },
+      distanceMeters: 150,
+      accessibilityScore: 95,
+      wheelchairAccessible: true,
+    },
+    {
+      spotId: 'rec_wc_1',
+      name: '車椅子対応エレベーター 東京駅',
       category: 'elevator',
-      location: { lat: centerLat - 0.0007, lng: centerLng - 0.0003 },
-      distanceMeters: 80,
-      accessibilityScore: 88,
+      location: { lat: 35.6814, lng: 139.7670 },
+      distanceMeters: 30,
+      accessibilityScore: 98,
+      wheelchairAccessible: true,
+    },
+    {
+      spotId: 'rec_wc_2',
+      name: '多目的トイレ KITTE',
+      category: 'restroom',
+      location: { lat: 35.6807, lng: 139.7649 },
+      distanceMeters: 100,
+      accessibilityScore: 96,
       wheelchairAccessible: true,
     },
   ];
@@ -115,6 +139,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const [searchText, setSearchText] = useState('');
   const [nearbySpots, setNearbySpots] = useState<SpotSummary[]>([]);
+  const [recommendedSpots, setRecommendedSpots] = useState<SpotSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [initialRegion, setInitialRegion] = useState<Region>(DEFAULT_REGION);
   const initialRegionSetRef = useRef(false); // initialRegion は一度だけ設定
@@ -179,6 +204,9 @@ export default function HomeScreen() {
     (async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
+
+        // おすすめスポットのモックデータをセット
+        setRecommendedSpots(mockRecommendedSpots());
 
         if (status !== 'granted') {
           setLocationReady(true);
@@ -265,6 +293,17 @@ export default function HomeScreen() {
     [handleSearch],
   );
 
+  // おすすめスポット選択
+  const handleSelectSpot = useCallback((spot: SpotSummary) => {
+    const { lat, lng } = spot.location;
+    const jsCommand = `
+      map.panTo({lat: ${lat}, lng: ${lng}});
+      map.setZoom(17);
+      true;
+    `;
+    mapRef.current?.injectJavaScript(jsCommand);
+  }, []);
+
   // クイックアクション
   const quickActions = [
     { label: '最寄りトイレ', icon: 'WC', query: 'バリアフリートイレ' },
@@ -281,10 +320,11 @@ export default function HomeScreen() {
         initialRegion={initialRegion}
         onRegionChangeComplete={handleRegionChangeComplete}
         showsUserLocation
-        showsMyLocationButton
+        showsMyLocationButton={false}
         userLocationCoords={userLocation ? { latitude: userLocation.latitude, longitude: userLocation.longitude } : undefined}
         accessibilityLabel="地図"
       >
+        {/* 周辺スポットマーカー */}
         {nearbySpots.map((spot) => (
           <Marker
             key={spot.spotId}
@@ -295,6 +335,19 @@ export default function HomeScreen() {
             title={spot.name}
             description={`${categoryLabel(spot.category)} - スコア: ${spot.accessibilityScore}`}
             pinColor={scoreColor(spot.accessibilityScore)}
+          />
+        ))}
+        {/* おすすめスポットマーカー */}
+        {recommendedSpots.map((spot) => (
+          <Marker
+            key={spot.spotId}
+            coordinate={{
+              latitude: spot.location.lat,
+              longitude: spot.location.lng,
+            }}
+            title={spot.name}
+            description={`おすすめ: ${spot.name}`}
+            pinColor="blue"
           />
         ))}
       </MapView>
@@ -400,7 +453,7 @@ export default function HomeScreen() {
         <View style={styles.spotsContainer}>
           <ActivityIndicator size="small" color="#007AFF" />
         </View>
-      ) : nearbySpots.length > 0 ? (
+      ) : recommendedSpots.length > 0 ? (
         <View style={styles.spotsContainer}>
           <Text style={styles.spotsTitle}>あなたへのおすすめ</Text>
           <ScrollView
@@ -408,14 +461,12 @@ export default function HomeScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.spotsScroll}
           >
-            {nearbySpots.map((spot) => (
+            {recommendedSpots.map((spot) => (
               <TouchableOpacity
                 key={spot.spotId}
                 style={styles.spotCard}
                 activeOpacity={0.7}
-                onPress={() => {
-                  handleSearch(spot.name);
-                }}
+                onPress={() => handleSelectSpot(spot)}
                 accessibilityLabel={`${spot.name}、${categoryLabel(spot.category)}、スコア${spot.accessibilityScore}、${distanceText(spot.distanceMeters)}`}
               >
                 <View style={styles.spotScoreRow}>

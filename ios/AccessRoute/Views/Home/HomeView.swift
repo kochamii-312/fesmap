@@ -96,28 +96,29 @@ struct HomeView: View {
                     Spacer()
 
                     // あなたへのおすすめ
-                    if !viewModel.recommendedSpots.isEmpty {
+                    if !viewModel.recommendedNearbySpots.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack(spacing: 6) {
-                                Image(systemName: "star.fill")
+                                Image(systemName: "hand.thumbsup.fill")
                                     .font(.caption)
-                                    .foregroundStyle(.orange)
+                                    .foregroundStyle(.blue)
                                 Text("あなたへのおすすめ")
                                     .font(.subheadline)
                                     .fontWeight(.medium)
                             }
                             .padding(.horizontal)
                             .accessibilityElement(children: .combine)
-                            .accessibilityLabel("あなたのプロファイルに基づくおすすめスポット")
+                            .accessibilityLabel("現在地の近くにある、あなたへのおすすめスポット")
 
                             ScrollView(.horizontal, showsIndicators: false) {
                                 LazyHStack(spacing: 10) {
-                                    ForEach(viewModel.recommendedSpots) { spot in
-                                        NavigationLink {
-                                            SpotDetailView(spotId: spot.spotId)
+                                    ForEach(viewModel.recommendedNearbySpots) { spot in
+                                        Button {
+                                            moveToSpot(spot)
                                         } label: {
                                             RecommendedSpotCard(spot: spot)
                                         }
+                                        .buttonStyle(.plain)
                                         .accessibilityLabel("\(spot.name)、\(spot.category.label)、スコア\(spot.accessibilityScore)点、おすすめ")
                                     }
                                 }
@@ -190,7 +191,6 @@ struct HomeView: View {
                 let loc = locationManager.locationOrDefault
                 Task {
                     await viewModel.searchNearbySpots(lat: loc.latitude, lng: loc.longitude)
-                    await viewModel.loadRecommendedSpots(lat: loc.latitude, lng: loc.longitude)
                 }
             }
             .onDisappear {
@@ -212,6 +212,20 @@ struct HomeView: View {
         } else {
             // 位置情報未取得の場合は許可をリクエスト
             locationManager.requestPermission()
+        }
+    }
+
+    // 指定したスポットにカメラを移動
+    private func moveToSpot(_ spot: SpotSummary) {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            cameraPosition = .region(MKCoordinateRegion(
+                center: CLLocationCoordinate2D(
+                    latitude: spot.location.lat,
+                    longitude: spot.location.lng
+                ),
+                latitudinalMeters: 500,
+                longitudinalMeters: 500
+            ))
         }
     }
 }

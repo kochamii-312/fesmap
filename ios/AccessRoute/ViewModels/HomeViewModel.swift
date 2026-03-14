@@ -6,9 +6,15 @@ final class HomeViewModel: ObservableObject {
     @Published var searchText = ""
     @Published var isSearching = false
     @Published var nearbySpots: [SpotSummary] = []
-    @Published var recommendedSpots: [SpotSummary] = []
     @Published var errorMessage: String?
     @Published var shouldNavigateToRoute = false
+
+    // 周辺スポットから距離が近い上位5件をおすすめとして表示する
+    var recommendedNearbySpots: [SpotSummary] {
+        Array(nearbySpots
+            .sorted { $0.distanceFromRoute < $1.distanceFromRoute }
+            .prefix(5))
+    }
 
     // 保存されたプロファイルからサマリー情報を取得
     var profileMobilityType: MobilityType {
@@ -49,16 +55,6 @@ final class HomeViewModel: ObservableObject {
         // モックデータで表示確認
         nearbySpots = Self.mockNearbySpots()
         isSearching = false
-    }
-
-    // プロファイルに基づくおすすめスポットを読み込む
-    func loadRecommendedSpots(lat: Double, lng: Double) async {
-        // TODO: バックエンドのレコメンドAPI実装後に差し替え
-        recommendedSpots = Self.mockRecommendedSpots(
-            mobilityType: profileMobilityType,
-            companions: profileCompanions,
-            avoidConditions: profileAvoidConditions
-        )
     }
 
     var profileAvoidConditions: [AvoidCondition] {
