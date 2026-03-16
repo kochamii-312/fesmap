@@ -1,6 +1,9 @@
 # Backend (Cloud Functions) CI パイプライン
 name: Backend CI
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   push:
     branches: [main, develop, "feature/**", "fix/**"]
