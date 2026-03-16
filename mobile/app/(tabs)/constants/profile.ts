@@ -1,5 +1,5 @@
 export const MOBILITY_OPTIONS = {
-  wheelchair: { label: '車椅子', icon: '♿', color: '#007AFF', desc: '段差を回避' },
+  wheelchair: { label: '車椅子', icon: '♿️', color: '#007AFF', desc: '段差を回避' },
   stroller: { label: 'ベビーカー', icon: '👶', color: '#5856D6', desc: 'エレベーター優先' },
   cane: { label: '杖・歩行', icon: '🦯', color: '#FF9500', desc: '平坦な道を選択' },
   walk: { label: '徒歩', icon: '🚶', color: '#34C759', desc: '標準的なルート' },
