@@ -226,7 +226,7 @@ curl -X POST \
       "nearbySpots": [
         {
           "spotId": "spot-101",
-          "name": "東京駅バリアフリートイレ",
+          "name": "東京バリアフリートイレ",
           "category": "restroom",
           "location": { "lat": 35.6812, "lng": 139.7671 },
           "accessibilityScore": 92,
@@ -280,7 +280,7 @@ curl -X GET \
   "spots": [
     {
       "spotId": "spot-101",
-      "name": "東京駅バリアフリートイレ",
+      "name": "東京バリアフリートイレ",
       "category": "restroom",
       "location": { "lat": 35.6812, "lng": 139.7671 },
       "accessibilityScore": 92,
@@ -323,7 +323,7 @@ curl -X GET \
 ```json
 {
   "spotId": "spot-101",
-  "name": "東京駅バリアフリートイレ",
+  "name": "東京バリアフリートイレ",
   "description": "東京駅丸の内口改札内にあるバリアフリー対応トイレ。車椅子利用可能。おむつ交換台あり。",
   "category": "restroom",
   "location": { "lat": 35.6812, "lng": 139.7671 },
