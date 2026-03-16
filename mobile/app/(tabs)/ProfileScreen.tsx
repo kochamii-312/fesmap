@@ -4,7 +4,7 @@ import {
   Dimensions, Platform, Alert
 } from 'react-native';
 import { Stack } from 'expo-router'; // タイトル設定用に追加
-import { MOBILITY_OPTIONS, AVOID_OPTIONS, PREFER_OPTIONS } from './constants/profile';
+import { MOBILITY_OPTIONS, AVOID_OPTIONS, PREFER_OPTIONS } from '../constants/profile';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
