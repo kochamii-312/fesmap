@@ -6,10 +6,12 @@ on:
     branches: [main, develop, "feature/**", "fix/**"]
     paths:
       - "ios/**"
+      - ".github/workflows/ios.yml"
   pull_request:
     branches: [main, develop]
     paths:
       - "ios/**"
+      - ".github/workflows/ios.yml"
 
 jobs:
   ios-ci:
