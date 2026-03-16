@@ -24,6 +24,10 @@ jobs:
       - name: リポジトリをチェックアウト
         uses: actions/checkout@v4
 
+      # YOLPアプリケーションIDを環境変数として設定
+      - name: YOLP App ID を環境変数に設定
+        run: echo "YOLP_APP_ID=${{ secrets.YOLP_APP_ID }}" >> $GITHUB_ENV
+
       - name: Xcode バージョン選択
         uses: maxim-lobanov/setup-xcode@v1
         with:

@@ -42,13 +42,9 @@ final class HomeViewModel: ObservableObject {
         isSearching = true
         errorMessage = nil
 
-        // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-        // ここに取得したアプリケーションID(Client ID)を設定してください
-        // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-        let yahoJapanoApplicationId = "YOUR_YAHOO"
-
-        guard yahoJapanoApplicationId != "YOUR_YAHOO_JAPAN_APP_ID" else {
-            errorMessage = "YOLPのアプリケーションIDが設定されていません。"
+        // GitHub Actions secretsからアプリケーションIDを取得
+        guard let yahoJapanoApplicationId = ProcessInfo.processInfo.environment["YOLP_APP_ID"] else {
+            errorMessage = "YOLPのアプリケーションIDが環境変数 'YOLP_APP_ID' に設定されていません。"
             isSearching = false
             return
         }
