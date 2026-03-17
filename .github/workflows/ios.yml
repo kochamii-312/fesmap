@@ -44,7 +44,7 @@ jobs:
           xcodegen generate
 
       - name: 利用可能なシミュレータを確認
-        run: xcrun simctl list devices available --json | python3 -c "import sys,json; devs=json.load(sys.stdin)['devices']; [print(f'{r}: {[d[\"name\"] for d in ds]}') for r,ds in devs.items() if ds and 'iOS' in r]"
+        run: xcrun simctl list devices available | grep "iPhone" | head -5
 
       - name: ビルド
         run: |
