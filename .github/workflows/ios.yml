@@ -43,20 +43,42 @@ jobs:
           brew install xcodegen
           xcodegen generate
 
+      - name: 利用可能なシミュレータを確認
+        run: xcrun simctl list devices available --json | python3 -c "import sys,json; devs=json.load(sys.stdin)['devices']; [print(f'{r}: {[d[\"name\"] for d in ds]}') for r,ds in devs.items() if ds and 'iOS' in r]"
+
       - name: ビルド
         run: |
-          xcodebuild build \
-            -project AccessRoute.xcodeproj \
-            -scheme AccessRoute \
-            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
-            -configuration Debug \
-            CODE_SIGNING_ALLOWED=NO
+          # 利用可能なiPhoneシミュレータを自動検出
+          SIM_NAME=$(xcrun simctl list devices available | grep "iPhone" | head -1 | sed 's/^ *//' | sed 's/ (.*//')
+          if [ -z "$SIM_NAME" ]; then
+            echo "シミュレータが見つからないため generic destination でビルド"
+            xcodebuild build \
+              -project AccessRoute.xcodeproj \
+              -scheme AccessRoute \
+              -destination 'generic/platform=iOS Simulator' \
+              -configuration Debug \
+              CODE_SIGNING_ALLOWED=NO
+          else
+            echo "シミュレータ: $SIM_NAME"
+            xcodebuild build \
+              -project AccessRoute.xcodeproj \
+              -scheme AccessRoute \
+              -destination "platform=iOS Simulator,name=$SIM_NAME" \
+              -configuration Debug \
+              CODE_SIGNING_ALLOWED=NO
+          fi
 
       - name: テスト実行
         run: |
+          SIM_NAME=$(xcrun simctl list devices available | grep "iPhone" | head -1 | sed 's/^ *//' | sed 's/ (.*//')
+          if [ -z "$SIM_NAME" ]; then
+            echo "::warning::シミュレータが見つからないためテストをスキップ"
+            exit 0
+          fi
+          echo "シミュレータ: $SIM_NAME"
           xcodebuild test \
             -project AccessRoute.xcodeproj \
             -scheme AccessRoute \
-            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -destination "platform=iOS Simulator,name=$SIM_NAME" \
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO
