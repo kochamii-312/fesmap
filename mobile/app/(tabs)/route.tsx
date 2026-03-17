@@ -809,6 +809,9 @@ export default function RouteScreen() {
     setSelectedRouteId(routeId);
   }, []);
 
+  // マップタップで目的地変更（performSearch より後で定義するため useRef で参照）
+  const handleMapPressRef = useRef<((location: { latitude: number; longitude: number }) => void) | null>(null);
+
   // フォールバック試行済みフラグ（transit → walking の自動リトライ用）
   const fallbackTriedRef = useRef(false);
 
@@ -1393,6 +1396,41 @@ export default function RouteScreen() {
     }
   }, [selectedMode, destinationText, performSearch]);
 
+  // マップタップで目的地変更
+  const handleMapPress = useCallback(async (location: { latitude: number; longitude: number }) => {
+    const coordsText = `${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`;
+    // 逆ジオコーディングで住所を取得
+    try {
+      const ExpoLocation = await import('expo-location');
+      const [address] = await ExpoLocation.reverseGeocodeAsync({
+        latitude: location.latitude,
+        longitude: location.longitude,
+      });
+      if (address) {
+        const addressText = [address.city, address.district, address.street, address.name].filter(Boolean).join(' ');
+        if (addressText) setDestinationText(addressText);
+        else setDestinationText(coordsText);
+      } else {
+        setDestinationText(coordsText);
+      }
+    } catch {
+      setDestinationText(coordsText);
+    }
+    // 目的地座標を更新してルート再検索
+    setDestCoords({ lat: location.latitude, lng: location.longitude });
+    // 既存の検索結果をクリアして再検索
+    setMultiModalResults([]);
+    setLegacyResults([]);
+    requestAnimationFrame(() => {
+      performSearch(coordsText);
+    });
+  }, [performSearch]);
+
+  // refを更新
+  useEffect(() => {
+    handleMapPressRef.current = handleMapPress;
+  }, [handleMapPress]);
+
   // 目的地周辺のおすすめスポットを取得（ルート検索完了後）
   useEffect(() => {
     if (!destCoords || !hasResults) {
@@ -1932,6 +1970,7 @@ export default function RouteScreen() {
             }}
             fitToRoute
             onRouteSelect={handleRouteSelect}
+            onMapPress={(loc) => handleMapPressRef.current?.(loc)}
             onDirectionsResult={handleDirectionsResult}
             directionsRequest={directionsReq}
             waypointMarkers={[

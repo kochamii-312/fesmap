@@ -99,6 +99,7 @@ type MapViewProps = {
   onRegionChangeComplete?: (region: Region) => void;
   onRouteSelect?: (routeId: string) => void;
   onDirectionsResult?: (result: DirectionsResult) => void;
+  onMapPress?: (location: { latitude: number; longitude: number }) => void; // マップタップ時のコールバック
   showsUserLocation?: boolean;
   showsMyLocationButton?: boolean;
   userLocationCoords?: { latitude: number; longitude: number }; // 既知の現在地座標（GPS取得済み）
@@ -617,6 +618,17 @@ function buildMapHtml(
         return false;
       };
 
+      // マップクリック（タップ）イベント
+      map.addListener('click', function(e) {
+        if (e.latLng) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'mapPress',
+            latitude: e.latLng.lat(),
+            longitude: e.latLng.lng()
+          }));
+        }
+      });
+
       map.addListener('idle', function() {
         var center = map.getCenter();
         var bounds = map.getBounds();
@@ -784,6 +796,7 @@ const MapViewWrapper = forwardRef<WebView, MapViewProps>(function MapViewWrapper
   onRegionChangeComplete,
   onRouteSelect,
   onDirectionsResult,
+  onMapPress,
   showsUserLocation = false,
   showsMyLocationButton = false,
   userLocationCoords,
@@ -936,6 +949,9 @@ const MapViewWrapper = forwardRef<WebView, MapViewProps>(function MapViewWrapper
         if (data.type === 'routeSelect' && onRouteSelect) {
           onRouteSelect(data.routeId);
         }
+        if (data.type === 'mapPress' && onMapPress) {
+          onMapPress({ latitude: data.latitude, longitude: data.longitude });
+        }
         if (data.type === 'directionsResult' && onDirectionsResult) {
           onDirectionsResult(data as DirectionsResult);
         }
@@ -946,7 +962,7 @@ const MapViewWrapper = forwardRef<WebView, MapViewProps>(function MapViewWrapper
         console.warn('[MapView] Message parse error:', err);
       }
     },
-    [onRegionChangeComplete, onRouteSelect, onDirectionsResult],
+    [onRegionChangeComplete, onRouteSelect, onMapPress, onDirectionsResult],
   );
 
   if (error) {
