@@ -55,31 +55,22 @@ function calcDistance(lat1: number, lng1: number, lat2: number, lng2: number): n
 }
 
 /**
- * Yahoo YOLP ローカル検索で周辺スポットを取得
- * @param lat 緯度
- * @param lng 経度
- * @param dist 検索半径（メートル、デフォルト1000）
- * @param query 検索キーワード（省略時: バリアフリー関連のデフォルトキーワード）
+ * Yahoo YOLP ローカル検索で単一キーワードのスポットを取得（内部用）
  */
-export async function searchYahooLocalSpots(
+async function fetchYolpSpots(
   lat: number,
   lng: number,
-  dist: number = 1000,
+  distKm: number,
   query?: string,
 ): Promise<SpotSummary[]> {
-  if (!YOLP_APP_ID) {
-    console.warn('[Yahoo] EXPO_PUBLIC_YOLP_APP_ID が未設定です');
-    return [];
-  }
-
   const params = new URLSearchParams({
     appid: YOLP_APP_ID,
     lat: lat.toString(),
     lon: lng.toString(),
-    dist: dist.toString(),
+    dist: distKm.toString(),
     output: 'json',
     sort: 'dist',
-    results: '20',
+    results: '10',
   });
   if (query) {
     params.set('query', query);
@@ -106,12 +97,10 @@ export async function searchYahooLocalSpots(
       return [];
     }
 
-    // YOLPレスポンスをアプリのSpotSummaryに変換
     const spots: SpotSummary[] = [];
     for (const feature of data.Feature) {
       if (!feature.Name || !feature.Geometry?.Coordinates) continue;
 
-      // Coordinates は "経度,緯度" の形式
       const coords = feature.Geometry.Coordinates.split(',');
       if (coords.length < 2) continue;
 
@@ -128,8 +117,8 @@ export async function searchYahooLocalSpots(
         category,
         location: { lat: spotLat, lng: spotLng },
         distanceMeters: Math.round(distance),
-        accessibilityScore: 50, // YOLPにはアクセシビリティ情報がないためデフォルト値
-        wheelchairAccessible: false, // 不明のためデフォルトfalse
+        accessibilityScore: 50,
+        wheelchairAccessible: false,
       });
     }
 
@@ -144,4 +133,53 @@ export async function searchYahooLocalSpots(
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+/**
+ * Yahoo YOLP ローカル検索で周辺スポットを取得
+ * 複数キーワードを並行検索してマージする
+ * @param lat 緯度
+ * @param lng 経度
+ * @param radiusMeters 検索半径（メートル、デフォルト1000）
+ * @param queries 検索キーワード配列（省略時: バリアフリー関連キーワード）
+ */
+export async function searchYahooLocalSpots(
+  lat: number,
+  lng: number,
+  radiusMeters: number = 1000,
+  ...queries: string[]
+): Promise<SpotSummary[]> {
+  if (!YOLP_APP_ID) {
+    console.warn('[Yahoo] EXPO_PUBLIC_YOLP_APP_ID が未設定です');
+    return [];
+  }
+
+  // メートル → km 変換（YOLP の dist はkm単位）
+  const distKm = Math.min(radiusMeters / 1000, 50);
+
+  // デフォルトキーワード
+  const keywords = queries.length > 0 ? queries : ['カフェ', 'トイレ', '休憩所'];
+
+  // 各キーワードを並行検索
+  const results = await Promise.allSettled(
+    keywords.map((q) => fetchYolpSpots(lat, lng, distKm, q)),
+  );
+
+  // マージして重複除去
+  const seen = new Set<string>();
+  const merged: SpotSummary[] = [];
+  for (const result of results) {
+    if (result.status !== 'fulfilled') continue;
+    for (const spot of result.value) {
+      if (!seen.has(spot.name)) {
+        seen.add(spot.name);
+        merged.push(spot);
+      }
+    }
+  }
+
+  // 距離順でソート
+  merged.sort((a, b) => a.distanceMeters - b.distanceMeters);
+
+  return merged;
 }

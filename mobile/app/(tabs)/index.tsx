@@ -127,7 +127,7 @@ export default function HomeScreen() {
       const [googleResult, backendYolpResult, clientYolpResult] = await Promise.allSettled([
         getNearbySpots(lat, lng),
         getNearbySpotsByYOLP(lat, lng),
-        searchYahooLocalSpots(lat, lng, 1000, 'カフェ OR トイレ OR 休憩'),
+        searchYahooLocalSpots(lat, lng, 1000, 'カフェ', 'トイレ', '休憩所'),
       ]);
       const googleSpots = googleResult.status === 'fulfilled' ? googleResult.value : [];
       const backendYolpSpots = backendYolpResult.status === 'fulfilled' ? backendYolpResult.value : [];
