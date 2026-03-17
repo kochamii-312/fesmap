@@ -862,6 +862,36 @@ export default function RouteScreen() {
       return;
     }
 
+    // transit モードの場合: 自前ルーターにフォールバック（バックエンドは不要）
+    if (requestedMode === 'transit') {
+      console.log('[Route] Google Transit 失敗 → 自前ルーターにフォールバック');
+      fallbackTriedRef.current = false;
+      try {
+        if (originCoords && destCoords) {
+          const transitResult = searchTransitRoute(originCoords, destCoords);
+          if (transitResult.routes.length > 0) {
+            const stations = buildTransitStationMarkers(transitResult);
+            setMultiModalResults(transitResult.routes);
+            setIsMultiModal(true);
+            setSelectedRouteId(transitResult.routes[0].routeId);
+            setTransitWaypoints(stations);
+            // ポリライン強化
+            enhanceRoutesWithRealPolylines(transitResult.routes).then(
+              (enhanced) => { setMultiModalResults(enhanced); },
+            ).catch(() => {});
+          } else {
+            setErrorMessage('電車ルートが見つかりませんでした');
+          }
+        } else {
+          setErrorMessage('出発地または目的地が不明です');
+        }
+      } catch {
+        setErrorMessage('電車ルートの検索に失敗しました');
+      }
+      setIsSearching(false);
+      return;
+    }
+
     // DirectionsService失敗時、バックエンドAPIにフォールバック
     console.log('[Route] DirectionsService status:', result.status, '→ バックエンドにフォールバック');
     fallbackTriedRef.current = false;
