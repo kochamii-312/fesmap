@@ -619,63 +619,63 @@ function buildMapHtml(
       };
 
       // マップ長押しで目的地変更（タッチイベント直接ハンドリング）
-      // Google Maps APIイベントではなくDOM touchイベントを使用し、
-      // 指が動かず1秒以上触れていた場合のみ発火する
-      // fitBounds等のプログラマティック操作はtouchイベントを発火しないため安全
+      // 指が動かず700ms以上触れ続けると発火。指を離しても発火済みならOK。
       (function() {
         var lpTimer = null;
         var startX = 0;
         var startY = 0;
-        var MOVE_THRESHOLD = 10; // px以上動いたらキャンセル
+        var fired = false;
+        var MOVE_THRESHOLD = 10;
+
+        // ピクセル座標→LatLng変換用のオーバーレイ
+        var overlay = new google.maps.OverlayView();
+        overlay.draw = function() {};
+        overlay.setMap(map);
 
         var mapDiv = document.getElementById('map');
         mapDiv.addEventListener('touchstart', function(e) {
-          if (e.touches.length !== 1) return; // マルチタッチはスキップ
+          if (e.touches.length !== 1) return;
           startX = e.touches[0].clientX;
           startY = e.touches[0].clientY;
+          fired = false;
+          if (lpTimer) clearTimeout(lpTimer);
           lpTimer = setTimeout(function() {
-            // 長押し成立 → タッチ位置の緯度経度を計算
-            var point = new google.maps.Point(startX, startY);
-            var proj = map.getProjection();
-            var bounds = map.getBounds();
-            if (proj && bounds) {
-              // ピクセル座標 → LatLng 変換
-              var ne = bounds.getNorthEast();
-              var sw = bounds.getSouthWest();
-              var topRight = proj.fromLatLngToPoint(ne);
-              var bottomLeft = proj.fromLatLngToPoint(sw);
-              var scale = Math.pow(2, map.getZoom());
-              var mapWidth = mapDiv.offsetWidth;
-              var mapHeight = mapDiv.offsetHeight;
-              var worldPoint = new google.maps.Point(
-                bottomLeft.x + (startX / mapWidth) * (topRight.x - bottomLeft.x),
-                topRight.y + (startY / mapHeight) * (bottomLeft.y - topRight.y)
-              );
-              var latLng = proj.fromPointToLatLng(worldPoint);
-              if (latLng) {
-                window.ReactNativeWebView.postMessage(JSON.stringify({
-                  type: 'mapPress',
-                  latitude: latLng.lat(),
-                  longitude: latLng.lng()
-                }));
+            fired = true;
+            lpTimer = null;
+            // OverlayViewのProjectionでピクセル→LatLng変換（最も正確）
+            try {
+              var proj = overlay.getProjection();
+              if (proj) {
+                var latLng = proj.fromContainerPixelToLatLng(
+                  new google.maps.Point(startX, startY)
+                );
+                if (latLng) {
+                  window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'mapPress',
+                    latitude: latLng.lat(),
+                    longitude: latLng.lng()
+                  }));
+                }
               }
+            } catch(err) {
+              console.warn('Long press coord error:', err);
             }
-          }, 1000);
+          }, 700);
         }, { passive: true });
 
         mapDiv.addEventListener('touchmove', function(e) {
-          if (lpTimer && e.touches.length > 0) {
-            var dx = e.touches[0].clientX - startX;
-            var dy = e.touches[0].clientY - startY;
-            if (Math.sqrt(dx * dx + dy * dy) > MOVE_THRESHOLD) {
-              clearTimeout(lpTimer);
-              lpTimer = null;
-            }
+          if (!lpTimer || e.touches.length === 0) return;
+          var dx = e.touches[0].clientX - startX;
+          var dy = e.touches[0].clientY - startY;
+          if (dx * dx + dy * dy > MOVE_THRESHOLD * MOVE_THRESHOLD) {
+            clearTimeout(lpTimer);
+            lpTimer = null;
           }
         }, { passive: true });
 
         mapDiv.addEventListener('touchend', function() {
-          if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+          // 発火済みならキャンセルしない（指を離しても目的地変更は実行済み）
+          if (lpTimer && !fired) { clearTimeout(lpTimer); lpTimer = null; }
         }, { passive: true });
 
         mapDiv.addEventListener('touchcancel', function() {
