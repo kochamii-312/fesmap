@@ -1,10 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet, 
+  View, Text, ScrollView, Pressable, StyleSheet,
   Dimensions, Platform, Alert
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 // 階層を移動した constants からインポート
 import { MOBILITY_OPTIONS, AVOID_OPTIONS, PREFER_OPTIONS } from '../constants/profile';
+import { STORAGE_KEYS } from '../../src/constants/storageKeys';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
@@ -14,6 +16,26 @@ export default function ProfileScreen() {
   const [avoids, setAvoids] = useState<string[]>([]);
   const [prefers, setPrefers] = useState<string[]>([]);
   const [distance, setDistance] = useState(1000);
+
+  // 起動時にAsyncStorageから設定を読み込む
+  useEffect(() => {
+    (async () => {
+      try {
+        const [rawMobility, rawAvoids, rawPrefers, rawDistance] = await Promise.all([
+          AsyncStorage.getItem(STORAGE_KEYS.mobilityType),
+          AsyncStorage.getItem(STORAGE_KEYS.avoidConditions),
+          AsyncStorage.getItem(STORAGE_KEYS.preferConditions),
+          AsyncStorage.getItem(STORAGE_KEYS.maxDistance),
+        ]);
+        if (rawMobility) setMobility(rawMobility);
+        if (rawAvoids) setAvoids(JSON.parse(rawAvoids));
+        if (rawPrefers) setPrefers(JSON.parse(rawPrefers));
+        if (rawDistance) setDistance(Number(rawDistance));
+      } catch {
+        console.warn('[Profile] 設定の読み込みに失敗');
+      }
+    })();
+  }, []);
 
   // --- プロファイル完了度の動的計算 ---
   const progress = useMemo(() => {
@@ -28,9 +50,18 @@ export default function ProfileScreen() {
     setList(list.includes(id) ? list.filter(i => i !== id) : [...list, id]);
   };
 
-  const handleSave = () => {
-    Alert.alert("設定を保存しました", `プロファイル完了度 ${progress}% で保存されました。`);
-    console.log({ mobility, avoids, prefers, distance, progress });
+  const handleSave = async () => {
+    try {
+      await Promise.all([
+        AsyncStorage.setItem(STORAGE_KEYS.mobilityType, mobility),
+        AsyncStorage.setItem(STORAGE_KEYS.avoidConditions, JSON.stringify(avoids)),
+        AsyncStorage.setItem(STORAGE_KEYS.preferConditions, JSON.stringify(prefers)),
+        AsyncStorage.setItem(STORAGE_KEYS.maxDistance, distance.toString()),
+      ]);
+      Alert.alert("設定を保存しました", `プロファイル完了度 ${progress}% で保存されました。`);
+    } catch {
+      Alert.alert("エラー", "設定の保存に失敗しました。もう一度お試しください。");
+    }
   };
 
   return (
