@@ -6,4 +6,5 @@ export const STORAGE_KEYS = {
   avoidConditions: 'profile_avoidConditions',
   preferConditions: 'profile_preferConditions',
   chatExtractedNeeds: 'chat_extractedNeeds',
+  seenSpotIds: 'seen_spot_ids',
 } as const;

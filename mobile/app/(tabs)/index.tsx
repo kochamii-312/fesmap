@@ -15,7 +15,7 @@ import { useRouter } from 'expo-router';
 import { SpotSummary } from '../../src/types';
 import { getNearbySpots, getNearbySpotsByYOLP, getPlaceSuggestions, geocodeAddress } from '../../src/services/api';
 import { searchYahooLocalSpots } from '../../src/services/yahooLocal';
-import { buildSearchKeywords } from '../../src/services/nearbySpots';
+import { buildSearchKeywords, deduplicateSpots } from '../../src/services/nearbySpots';
 import { loadUnifiedNeeds } from '../../src/services/userNeeds';
 import * as Location from 'expo-location';
 
@@ -144,22 +144,8 @@ export default function HomeScreen() {
       if (googleSpots.length === 0 && yolpSpots.length === 0) {
         setNearbySpots(mockNearbySpots(lat, lng));
       } else {
-        // マージ（Google優先、名前重複を除外）
-        const seen = new Set<string>();
-        const googleNames = new Set(googleSpots.map((s) => s.name));
-        const merged: SpotSummary[] = [];
-        for (const spot of googleSpots) {
-          if (!seen.has(spot.spotId)) {
-            seen.add(spot.spotId);
-            merged.push(spot);
-          }
-        }
-        for (const spot of yolpSpots) {
-          if (!seen.has(spot.spotId) && !googleNames.has(spot.name)) {
-            seen.add(spot.spotId);
-            merged.push(spot);
-          }
-        }
+        // マージ＆重複除去（名前正規化+近接距離で同一施設を検出）
+        const merged = deduplicateSpots([...googleSpots, ...yolpSpots]);
         setNearbySpots(merged);
       }
     } catch {

@@ -1,10 +1,12 @@
 // パーソナライズされた周辺スポット推薦サービス
 // ユーザーのニーズに基づいてスポットをスコアリング・フィルタリングする
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LatLng, SpotSummary } from '../types';
 import { getNearbySpots, getNearbySpotsByYOLP } from './api';
 import { searchYahooLocalSpots } from './yahooLocal';
 import { UnifiedUserNeeds } from './userNeeds';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 // スコア付きスポット
 export interface ScoredSpot extends SpotSummary {
@@ -229,30 +231,76 @@ function generateMockSpots(destination: LatLng, needs: UnifiedUserNeeds): SpotSu
 }
 
 /**
- * Google と YOLP の結果をマージし、spotId ベースで重複を除去する
+ * 名前を正規化して比較用キーを生成（表記揺れ対策）
+ * 例: "セブン-イレブン　東京駅前店" → "セブンイレブン東京駅前店"
+ */
+function normalizeName(name: string): string {
+  return name
+    .replace(/[\s\u3000\-\u2010-\u2015\u2212\uFF0D・]/g, '') // スペース・ハイフン・中点を除去
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)) // 全角英数→半角
+    .toLowerCase();
+}
+
+/**
+ * 2つのスポットが同一施設かどうかを判定
+ * 名前の正規化比較 + 近接距離（50m以内）で判定
+ */
+function isDuplicate(a: SpotSummary, b: SpotSummary): boolean {
+  // spotId一致
+  if (a.spotId === b.spotId) return true;
+
+  const nameA = normalizeName(a.name);
+  const nameB = normalizeName(b.name);
+
+  // 正規化名が完全一致
+  if (nameA === nameB) return true;
+
+  // 片方がもう片方を含み、かつ50m以内
+  if (nameA.includes(nameB) || nameB.includes(nameA)) {
+    const latDiff = Math.abs(a.location.lat - b.location.lat);
+    const lngDiff = Math.abs(a.location.lng - b.location.lng);
+    // 緯度経度の差が約0.0005（≒50m）以内なら同一施設とみなす
+    if (latDiff < 0.0005 && lngDiff < 0.0005) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Google と YOLP の結果をマージし、重複を除去する
+ * spotId・名前の正規化・近接距離で同一施設を検出
  */
 function mergeSpots(googleSpots: SpotSummary[], yolpSpots: SpotSummary[]): SpotSummary[] {
-  const seen = new Set<string>();
   const merged: SpotSummary[] = [];
 
-  // Google の結果を優先的に追加
+  // Google の結果を優先的に追加（Google内の重複も除去）
   for (const spot of googleSpots) {
-    if (!seen.has(spot.spotId)) {
-      seen.add(spot.spotId);
+    if (!merged.some((m) => isDuplicate(m, spot))) {
       merged.push(spot);
     }
   }
 
-  // YOLP の結果を追加（名前が完全一致するものも重複として除外）
-  const googleNames = new Set(googleSpots.map((s) => s.name));
+  // YOLP の結果を追加（既存と重複するものを除外）
   for (const spot of yolpSpots) {
-    if (!seen.has(spot.spotId) && !googleNames.has(spot.name)) {
-      seen.add(spot.spotId);
+    if (!merged.some((m) => isDuplicate(m, spot))) {
       merged.push(spot);
     }
   }
 
   return merged;
+}
+
+/**
+ * スポット配列から重複を除去する（外部から利用可能）
+ */
+export function deduplicateSpots(spots: SpotSummary[]): SpotSummary[] {
+  const result: SpotSummary[] = [];
+  for (const spot of spots) {
+    if (!result.some((m) => isDuplicate(m, spot))) {
+      result.push(spot);
+    }
+  }
+  return result;
 }
 
 /**
@@ -357,4 +405,46 @@ export async function fetchPersonalizedSpots(
   scored.sort((a, b) => b.relevanceScore - a.relevanceScore);
 
   return scored.slice(0, 10);
+}
+
+// --- 閲覧済みスポット管理 ---
+
+const MAX_SEEN_SPOTS = 200; // 保持する最大件数
+
+/**
+ * 閲覧済みスポットIDの一覧を取得
+ */
+export async function getSeenSpotIds(): Promise<Set<string>> {
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEYS.seenSpotIds);
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw) as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * スポットIDを閲覧済みとして記録
+ */
+export async function markSpotsAsSeen(spotIds: string[]): Promise<void> {
+  try {
+    const existing = await getSeenSpotIds();
+    for (const id of spotIds) {
+      existing.add(id);
+    }
+    // 古いものから削除して上限を維持
+    const arr = [...existing];
+    const trimmed = arr.length > MAX_SEEN_SPOTS ? arr.slice(arr.length - MAX_SEEN_SPOTS) : arr;
+    await AsyncStorage.setItem(STORAGE_KEYS.seenSpotIds, JSON.stringify(trimmed));
+  } catch {
+    // 保存失敗は無視
+  }
+}
+
+/**
+ * 閲覧済みスポットを除外してフィルタリング
+ */
+export function filterSeenSpots<T extends SpotSummary>(spots: T[], seenIds: Set<string>): T[] {
+  return spots.filter((spot) => !seenIds.has(spot.spotId));
 }

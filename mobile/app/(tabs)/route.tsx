@@ -35,7 +35,7 @@ import { searchTransitRoute, enhanceTransitPolylines } from '../../src/services/
 import { geocode } from '../../src/services/geocoding';
 import { GOOGLE_MAPS_API_KEY } from '../../src/components/MapViewWrapper';
 import { loadUnifiedNeeds } from '../../src/services/userNeeds';
-import { fetchPersonalizedSpots, buildSearchKeywords, ScoredSpot } from '../../src/services/nearbySpots';
+import { fetchPersonalizedSpots, buildSearchKeywords, getSeenSpotIds, markSpotsAsSeen, filterSeenSpots, ScoredSpot } from '../../src/services/nearbySpots';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const MAP_HEIGHT = SCREEN_HEIGHT * 0.35;
@@ -1285,11 +1285,18 @@ export default function RouteScreen() {
     }
     let cancelled = false;
     (async () => {
+      // 閲覧済みスポットIDを取得
+      const seenIds = await getSeenSpotIds();
+
       try {
         const needs = await loadUnifiedNeeds();
         const spots = await fetchPersonalizedSpots(destCoords, needs);
         if (!cancelled && spots.length > 0) {
-          setRecommendedSpots(spots);
+          const filtered = filterSeenSpots(spots, seenIds);
+          // 閲覧済み除外後にスポットが残っていればそれを表示、なければ全件表示
+          const toShow = filtered.length > 0 ? filtered : spots;
+          setRecommendedSpots(toShow);
+          markSpotsAsSeen(toShow.map((s) => s.spotId));
           return;
         }
       } catch {
@@ -1303,11 +1310,15 @@ export default function RouteScreen() {
           const { searchYahooLocalSpots } = await import('../../src/services/yahooLocal');
           const yolpSpots = await searchYahooLocalSpots(destCoords.lat, destCoords.lng, 1000, ...keywords);
           if (!cancelled && yolpSpots.length > 0) {
-            setRecommendedSpots(yolpSpots.slice(0, 10).map(spot => ({
+            const scored = yolpSpots.slice(0, 10).map(spot => ({
               ...spot,
               relevanceScore: 50,
               relevanceReason: spot.category === 'cafe' ? 'カフェ' : spot.category === 'restaurant' ? 'レストラン' : spot.name,
-            })));
+            }));
+            const filtered = filterSeenSpots(scored, seenIds);
+            const toShow = filtered.length > 0 ? filtered : scored;
+            setRecommendedSpots(toShow);
+            markSpotsAsSeen(toShow.map((s) => s.spotId));
           }
         } catch {
           console.warn('[Route] クライアントYOLPフォールバックも失敗');
