@@ -1288,11 +1288,28 @@ export default function RouteScreen() {
       try {
         const needs = await loadUnifiedNeeds();
         const spots = await fetchPersonalizedSpots(destCoords, needs);
-        if (!cancelled) {
+        if (!cancelled && spots.length > 0) {
           setRecommendedSpots(spots);
+          return;
         }
       } catch {
-        // スポット取得失敗時は空のまま
+        console.warn('[Route] fetchPersonalizedSpots失敗');
+      }
+      // フォールバック: クライアント直接YOLPで取得
+      if (!cancelled) {
+        try {
+          const { searchYahooLocalSpots } = await import('../../src/services/yahooLocal');
+          const yolpSpots = await searchYahooLocalSpots(destCoords.lat, destCoords.lng, 1000, 'カフェ', 'レストラン', 'コンビニ');
+          if (!cancelled && yolpSpots.length > 0) {
+            setRecommendedSpots(yolpSpots.slice(0, 10).map(spot => ({
+              ...spot,
+              relevanceScore: 50,
+              relevanceReason: spot.category === 'cafe' ? 'カフェ' : spot.category === 'restaurant' ? 'レストラン' : spot.name,
+            })));
+          }
+        } catch {
+          console.warn('[Route] クライアントYOLPフォールバックも失敗');
+        }
       }
     })();
     return () => { cancelled = true; };
