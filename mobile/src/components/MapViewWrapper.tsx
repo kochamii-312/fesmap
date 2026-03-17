@@ -618,15 +618,27 @@ function buildMapHtml(
         return false;
       };
 
-      // マップクリック（タップ）イベント
-      map.addListener('click', function(e) {
-        if (e.latLng) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'mapPress',
-            latitude: e.latLng.lat(),
-            longitude: e.latLng.lng()
-          }));
-        }
+      // マップ長押し（ロングプレス）で目的地変更
+      var longPressTimer = null;
+      var longPressTriggered = false;
+      map.addListener('mousedown', function(e) {
+        longPressTriggered = false;
+        longPressTimer = setTimeout(function() {
+          longPressTriggered = true;
+          if (e.latLng) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'mapPress',
+              latitude: e.latLng.lat(),
+              longitude: e.latLng.lng()
+            }));
+          }
+        }, 800);
+      });
+      map.addListener('mouseup', function() {
+        if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+      });
+      map.addListener('dragstart', function() {
+        if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
       });
 
       map.addListener('idle', function() {
