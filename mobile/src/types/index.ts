@@ -31,6 +31,19 @@ export interface LatLng {
   lng: number;
 }
 
+// OSMから取得したアクセシビリティ情報
+export interface OsmAccessibility {
+  wheelchairAccessible?: 'yes' | 'no' | 'limited' | 'unknown';
+  hasSteps?: boolean;
+  sidewalkWidth?: number;       // メートル
+  kerbHeight?: number;          // cm
+  surfaceType?: string;         // paved, unpaved, cobblestone 等
+  tactilePaving?: boolean;
+}
+
+// 勾配の警告レベル
+export type SlopeWarningLevel = 'safe' | 'caution' | 'dangerous';
+
 export interface RouteStep {
   stepId: string;
   instruction: string;
@@ -42,6 +55,33 @@ export interface RouteStep {
   hasStairs: boolean;
   hasSlope: boolean;
   transitDetail?: TransitDetail;
+  slopeGradient?: number;              // 平均勾配（%）
+  maxSlopeGradient?: number;           // 最大勾配（%）
+  slopeWarningLevel?: SlopeWarningLevel;
+  osmAccessibility?: OsmAccessibility;
+}
+
+// 急勾配区間
+export interface SteepSection {
+  startLocation: LatLng;
+  endLocation: LatLng;
+  gradientPercent: number;
+  distanceMeters: number;
+}
+
+// ルートの高低差プロファイル
+export interface ElevationProfile {
+  totalAscentMeters: number;
+  totalDescentMeters: number;
+  maxGradientPercent: number;
+  steepSections: SteepSection[];
+}
+
+// OSMバリア情報
+export interface OsmBarrier {
+  type: 'steps' | 'kerb' | 'narrow_passage' | 'no_wheelchair';
+  location: LatLng;
+  description: string;
 }
 
 export interface RouteResult {
@@ -169,4 +209,6 @@ export interface MultiModalRoute {
   legs: WaypointLeg[];
   warnings: string[];
   fare?: string;  // 運賃
+  elevationProfile?: ElevationProfile;
+  osmBarriers?: OsmBarrier[];
 }

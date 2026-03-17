@@ -34,7 +34,8 @@ import { getCurrentUserId } from '../../src/services/auth';
 import { searchTransitRoute, enhanceTransitPolylines } from '../../src/services/transitRouter';
 import { geocode } from '../../src/services/geocoding';
 import { GOOGLE_MAPS_API_KEY } from '../../src/components/MapViewWrapper';
-import { loadUnifiedNeeds } from '../../src/services/userNeeds';
+import { loadUnifiedNeeds, UnifiedUserNeeds } from '../../src/services/userNeeds';
+import { enrichRouteAccessibility } from '../../src/services/accessibilityEnricher';
 import { fetchPersonalizedSpots, buildSearchKeywords, getSeenSpotIds, markSpotsAsSeen, filterSeenSpots, ScoredSpot } from '../../src/services/nearbySpots';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -834,6 +835,18 @@ export default function RouteScreen() {
             setTransitWaypoints(stations);
           }
           setIsSearching(false);
+          // バックグラウンド: 勾配・OSMデータでアクセシビリティを強化
+          (async () => {
+            try {
+              const needs = await loadUnifiedNeeds();
+              const enriched = await Promise.all(
+                parsed.map((r) => enrichRouteAccessibility(r, needs)),
+              );
+              setMultiModalResults(enriched);
+            } catch (err) {
+              console.warn('[Route] アクセシビリティ強化失敗:', err);
+            }
+          })();
           return;
         }
       } catch (err) {
@@ -875,10 +888,18 @@ export default function RouteScreen() {
             setIsMultiModal(true);
             setSelectedRouteId(transitResult.routes[0].routeId);
             setTransitWaypoints(stations);
-            // ポリライン強化
-            enhanceRoutesWithRealPolylines(transitResult.routes).then(
-              (enhanced) => { setMultiModalResults(enhanced); },
-            ).catch(() => {});
+            // ポリライン強化 + アクセシビリティ強化
+            (async () => {
+              try {
+                const enhanced = await enhanceRoutesWithRealPolylines(transitResult.routes);
+                setMultiModalResults(enhanced);
+                const needs = await loadUnifiedNeeds();
+                const enriched = await Promise.all(
+                  enhanced.map((r) => enrichRouteAccessibility(r, needs)),
+                );
+                setMultiModalResults(enriched);
+              } catch {}
+            })();
           } else {
             setErrorMessage('電車ルートが見つかりませんでした');
           }
