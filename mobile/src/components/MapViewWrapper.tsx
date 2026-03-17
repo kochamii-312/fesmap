@@ -232,6 +232,7 @@ function buildMapHtml(
   directionsRequest?: DirectionsRequest,
   userLocationCoords?: { latitude: number; longitude: number },
 ): string {
+  // 初期マーカーも _spotMarkers に登録して後からクリア可能にする
   const markersJs = markers
     .map(
       (m) => `
@@ -261,6 +262,7 @@ function buildMapHtml(
         `
             : ''
         }
+        window._spotMarkers.push(marker);
       })();`
     )
     .join('\n');
@@ -872,9 +874,16 @@ const MapViewWrapper = forwardRef<WebView, MapViewProps>(function MapViewWrapper
   );
 
   // マーカーが変化したらWebView再生成ではなくinjectJavaScriptで更新
+  const isInitialMarkersRef = useRef(true);
   useEffect(() => {
-    if (!webViewRef.current || markers.length === 0) return;
-    const markersJs = markers.map((m) => `
+    // 初回は buildMapHtml 内のマーカーが表示されるのでスキップ
+    if (isInitialMarkersRef.current) {
+      isInitialMarkersRef.current = false;
+      return;
+    }
+    if (!webViewRef.current) return;
+
+    const updateJs = markers.map((m) => `
       (function() {
         var marker = new google.maps.Marker({
           position: { lat: ${m.coordinate.latitude}, lng: ${m.coordinate.longitude} },
@@ -897,40 +906,16 @@ const MapViewWrapper = forwardRef<WebView, MapViewProps>(function MapViewWrapper
           infowindow.open(map, marker);
         });
         ` : ''}
+        window._spotMarkers.push(marker);
       })();
     `).join('\n');
 
     webViewRef.current.injectJavaScript(`
       if (typeof map !== 'undefined' && typeof window._spotMarkers !== 'undefined') {
         window._spotMarkers.forEach(function(m) { m.setMap(null); });
+        window._spotMarkers = [];
       }
-      window._spotMarkers = [];
-      (function() {
-        ${markers.map((m) => `
-          var marker = new google.maps.Marker({
-            position: { lat: ${m.coordinate.latitude}, lng: ${m.coordinate.longitude} },
-            map: map,
-            title: ${JSON.stringify(m.title || '')},
-            icon: {
-              path: google.maps.SymbolPath.CIRCLE,
-              scale: 10,
-              fillColor: '${pinColorToHex(m.pinColor)}',
-              fillOpacity: 1,
-              strokeColor: '#FFFFFF',
-              strokeWeight: 2,
-            }
-          });
-          ${m.title || m.description ? `
-          var infowindow = new google.maps.InfoWindow({
-            content: '<div style="font-size:14px;"><strong>${escapeHtml(m.title || '')}</strong>${m.description ? '<br/>' + escapeHtml(m.description) : ''}</div>'
-          });
-          marker.addListener('click', function() {
-            infowindow.open(map, marker);
-          });
-          ` : ''}
-          window._spotMarkers.push(marker);
-        `).join('\n')}
-      })();
+      ${updateJs}
       true;
     `);
   }, [markersKey]);
