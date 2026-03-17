@@ -476,6 +476,7 @@ function buildMapHtml(
   <script>
     var map;
     var pendingDirectionsRequest = false;
+    window._spotMarkers = [];
     function initMap() {
       map = new google.maps.Map(document.getElementById('map'), {
         center: { lat: ${region.latitude}, lng: ${region.longitude} },
@@ -816,6 +817,11 @@ const MapViewWrapper = forwardRef<WebView, MapViewProps>(function MapViewWrapper
 
   const markers = collectMarkers(children);
 
+  // マーカーの安定キー（座標ベースで変化を検出）
+  const markersKey = markers
+    .map((m) => `${m.coordinate.latitude},${m.coordinate.longitude}:${m.title || ''}`)
+    .join(';');
+
   // Build a stable key for routes to detect changes
   const routesKey = routes
     ? routes.map((r) => `${r.id}:${r.selected ? '1' : '0'}:${r.mode || ''}`).join(',')
@@ -826,9 +832,12 @@ const MapViewWrapper = forwardRef<WebView, MapViewProps>(function MapViewWrapper
     ? waypointMarkers.map((wp) => `${wp.latitude},${wp.longitude}:${wp.mode || ''}:${wp.label || ''}`).join(';')
     : '';
 
+  // HTML生成は初期表示とルート変更時のみ（マーカー更新ではWebView再生成しない）
+  // initialRegion はマウント時に一度だけ使い、以降はinjectJavaScriptでマーカーを更新
+  const initialHtmlRef = useRef<string | null>(null);
   const html = useMemo(
-    () =>
-      buildMapHtml(
+    () => {
+      const generated = buildMapHtml(
         region,
         markers,
         showsUserLocation,
@@ -840,13 +849,13 @@ const MapViewWrapper = forwardRef<WebView, MapViewProps>(function MapViewWrapper
         waypointMarkers,
         directionsRequest,
         userLocationCoords,
-      ),
+      );
+      initialHtmlRef.current = generated;
+      return generated;
+    },
     [
-      region.latitude,
-      region.longitude,
-      region.latitudeDelta,
-      region.longitudeDelta,
-      markers.length,
+      // 注: region と markersKey は意図的に依存から除外
+      // マーカー更新でWebView再読み込みすると現在地に戻されるため
       showsUserLocation,
       showsMyLocationButton,
       routesKey,
@@ -861,6 +870,70 @@ const MapViewWrapper = forwardRef<WebView, MapViewProps>(function MapViewWrapper
       userLocationCoords?.longitude,
     ],
   );
+
+  // マーカーが変化したらWebView再生成ではなくinjectJavaScriptで更新
+  useEffect(() => {
+    if (!webViewRef.current || markers.length === 0) return;
+    const markersJs = markers.map((m) => `
+      (function() {
+        var marker = new google.maps.Marker({
+          position: { lat: ${m.coordinate.latitude}, lng: ${m.coordinate.longitude} },
+          map: map,
+          title: ${JSON.stringify(m.title || '')},
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 10,
+            fillColor: '${pinColorToHex(m.pinColor)}',
+            fillOpacity: 1,
+            strokeColor: '#FFFFFF',
+            strokeWeight: 2,
+          }
+        });
+        ${m.title || m.description ? `
+        var infowindow = new google.maps.InfoWindow({
+          content: '<div style="font-size:14px;"><strong>${escapeHtml(m.title || '')}</strong>${m.description ? '<br/>' + escapeHtml(m.description) : ''}</div>'
+        });
+        marker.addListener('click', function() {
+          infowindow.open(map, marker);
+        });
+        ` : ''}
+      })();
+    `).join('\n');
+
+    webViewRef.current.injectJavaScript(`
+      if (typeof map !== 'undefined' && typeof window._spotMarkers !== 'undefined') {
+        window._spotMarkers.forEach(function(m) { m.setMap(null); });
+      }
+      window._spotMarkers = [];
+      (function() {
+        ${markers.map((m) => `
+          var marker = new google.maps.Marker({
+            position: { lat: ${m.coordinate.latitude}, lng: ${m.coordinate.longitude} },
+            map: map,
+            title: ${JSON.stringify(m.title || '')},
+            icon: {
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: 10,
+              fillColor: '${pinColorToHex(m.pinColor)}',
+              fillOpacity: 1,
+              strokeColor: '#FFFFFF',
+              strokeWeight: 2,
+            }
+          });
+          ${m.title || m.description ? `
+          var infowindow = new google.maps.InfoWindow({
+            content: '<div style="font-size:14px;"><strong>${escapeHtml(m.title || '')}</strong>${m.description ? '<br/>' + escapeHtml(m.description) : ''}</div>'
+          });
+          marker.addListener('click', function() {
+            infowindow.open(map, marker);
+          });
+          ` : ''}
+          window._spotMarkers.push(marker);
+        `).join('\n')}
+      })();
+      true;
+    `);
+  }, [markersKey]);
 
   const handleMessage = useCallback(
     (event: { nativeEvent: { data: string } }) => {
