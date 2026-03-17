@@ -491,7 +491,13 @@ function buildMapHtml(
         fullscreenControl: false,
         styles: [
           { featureType: 'transit', stylers: [{ visibility: 'on' }] },
-          { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+          // ビジネス系POI（飲食店・商業施設の広告ラベル）は非表示
+          { featureType: 'poi.business', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+          // 公共施設（トイレ・公園等）のアイコン・ラベルは表示
+          { featureType: 'poi.government', stylers: [{ visibility: 'on' }] },
+          { featureType: 'poi.medical', stylers: [{ visibility: 'on' }] },
+          { featureType: 'poi.park', elementType: 'geometry', stylers: [{ visibility: 'on' }] },
+          { featureType: 'poi.park', elementType: 'labels', stylers: [{ visibility: 'on' }] },
         ],
       });
 
