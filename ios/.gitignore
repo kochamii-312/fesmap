@@ -1,0 +1,7 @@
+# XcodeGen で生成されるプロジェクトファイル
+*.xcodeproj
+
+# Xcode ビルド成果物
+DerivedData/
+build/
+*.xcworkspace/xcuserdata/

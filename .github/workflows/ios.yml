@@ -38,6 +38,11 @@ jobs:
           brew install swiftlint
           swiftlint lint --strict
 
+      - name: XcodeGen インストール・プロジェクト生成
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
       - name: ビルド
         run: |
           xcodebuild build \

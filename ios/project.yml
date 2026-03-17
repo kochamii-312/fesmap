@@ -1,0 +1,49 @@
+name: AccessRoute
+options:
+  bundleIdPrefix: com.accessroute
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "16.0"
+  generateEmptyDirectories: false
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    CODE_SIGN_STYLE: Automatic
+    INFOPLIST_FILE: AccessRoute/App/Info.plist
+
+targets:
+  AccessRoute:
+    type: application
+    platform: iOS
+    sources:
+      - path: AccessRoute
+        excludes:
+          - "**/.DS_Store"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.accessroute.app
+        INFOPLIST_FILE: AccessRoute/App/Info.plist
+        CODE_SIGN_STYLE: Automatic
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: true
+        CODE_SIGNING_ALLOWED: "$(CODE_SIGNING_ALLOWED)"
+      configs:
+        Debug:
+          SWIFT_OPTIMIZATION_LEVEL: "-Onone"
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "DEBUG"
+        Release:
+          SWIFT_OPTIMIZATION_LEVEL: "-O"
+
+schemes:
+  AccessRoute:
+    build:
+      targets:
+        AccessRoute: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+    archive:
+      config: Release
