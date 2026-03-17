@@ -79,7 +79,89 @@ interface TransitStationMarker {
   latitude: number;
   longitude: number;
   title: string;
+  label?: string; // 路線名ラベル（例: "山手線 → 中央線"）
   type: 'station' | 'transfer';
+}
+
+/**
+ * MultiModalRoute のレッグからtransit駅マーカーを生成するユーティリティ
+ */
+function buildTransitStationMarkersFromRoutes(routes: MultiModalRoute[]): TransitStationMarker[] {
+  const stations: TransitStationMarker[] = [];
+  for (const route of routes) {
+    for (let i = 0; i < route.legs.length; i++) {
+      const leg = route.legs[i];
+      if (leg.mode !== 'transit' || !leg.transitDetails || leg.transitDetails.length === 0) continue;
+      const td = leg.transitDetails[0];
+      // 乗車駅
+      if (leg.origin?.lat != null && leg.origin?.lng != null) {
+        const nextLine = td.lineName;
+        const prevLeg = i > 0 ? route.legs[i - 1] : null;
+        const prevLine = prevLeg?.mode === 'transit' && prevLeg.transitDetails?.[0]?.lineName;
+        stations.push({
+          latitude: leg.origin.lat,
+          longitude: leg.origin.lng,
+          title: td.departureStop,
+          label: prevLine ? `${prevLine} → ${nextLine}` : nextLine,
+          type: prevLine ? 'transfer' : 'station',
+        });
+      }
+      // 降車駅
+      if (leg.destination?.lat != null && leg.destination?.lng != null) {
+        const nextLeg = i < route.legs.length - 1 ? route.legs[i + 1] : null;
+        const nextLine = nextLeg?.mode === 'transit' && nextLeg.transitDetails?.[0]?.lineName;
+        stations.push({
+          latitude: leg.destination.lat,
+          longitude: leg.destination.lng,
+          title: td.arrivalStop,
+          label: nextLine ? `${td.lineName} → ${nextLine}` : td.lineName,
+          type: nextLine ? 'transfer' : 'station',
+        });
+      }
+    }
+  }
+  // 重複除去（同じ駅名+座標）
+  const seen = new Set<string>();
+  return stations.filter((s) => {
+    const key = `${s.title}:${s.latitude.toFixed(5)},${s.longitude.toFixed(5)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
+ * 自前ルーターの TransitRouteResult から駅マーカーを生成
+ */
+function buildTransitStationMarkers(transitResult: ReturnType<typeof searchTransitRoute>): TransitStationMarker[] {
+  const stations: TransitStationMarker[] = [];
+  if (transitResult.originStation) {
+    stations.push({
+      latitude: transitResult.originStation.lat,
+      longitude: transitResult.originStation.lng,
+      title: transitResult.originStation.name,
+      type: 'station',
+    });
+  }
+  if (transitResult.destStation) {
+    stations.push({
+      latitude: transitResult.destStation.lat,
+      longitude: transitResult.destStation.lng,
+      title: transitResult.destStation.name,
+      type: 'station',
+    });
+  }
+  for (const route of transitResult.routes) {
+    stations.push(...buildTransitStationMarkersFromRoutes([route]));
+  }
+  // 重複除去
+  const seen = new Set<string>();
+  return stations.filter((s) => {
+    const key = `${s.title}:${s.latitude.toFixed(5)},${s.longitude.toFixed(5)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 // スコアに応じた色を返す
@@ -746,6 +828,11 @@ export default function RouteScreen() {
           setMultiModalResults(parsed);
           setIsMultiModal(true);
           setSelectedRouteId(parsed[0].routeId);
+          // transit の場合は駅マーカーを生成
+          if (requestedMode === 'transit') {
+            const stations = buildTransitStationMarkersFromRoutes(parsed);
+            setTransitWaypoints(stations);
+          }
           setIsSearching(false);
           return;
         }
@@ -1005,85 +1092,58 @@ export default function RouteScreen() {
         // 経由地がない場合: 従来のルーティングロジック
         if (validWaypoints.length === 0) {
           if (selectedMode === 'transit') {
+            // Google Directions Transit API を WebView 経由で呼び出す（優先）
+            // 同時に自前ルーターも走らせてフォールバックに使う
+            const capturedSearchId = currentSearchId;
+
+            // 自前ルーターの結果を先に取得（即座に返る）
+            let customRouterResult: ReturnType<typeof searchTransitRoute> | null = null;
             try {
-              const transitResult = searchTransitRoute(oCoords, dCoords);
-              if (currentSearchId !== searchIdRef.current) return;
-
-              if (transitResult.routes.length > 0) {
-                setMultiModalResults(transitResult.routes);
-                setIsMultiModal(true);
-                setSelectedRouteId(transitResult.routes[0].routeId);
-
-                const stations: TransitStationMarker[] = [];
-                if (transitResult.originStation) {
-                  stations.push({
-                    latitude: transitResult.originStation.lat,
-                    longitude: transitResult.originStation.lng,
-                    title: transitResult.originStation.name,
-                    type: 'station',
-                  });
-                }
-                if (transitResult.destStation) {
-                  stations.push({
-                    latitude: transitResult.destStation.lat,
-                    longitude: transitResult.destStation.lng,
-                    title: transitResult.destStation.name,
-                    type: 'station',
-                  });
-                }
-                for (const route of transitResult.routes) {
-                  for (const leg of route.legs) {
-                    if (leg.mode === 'transit' && leg.transitDetails) {
-                      for (const td of leg.transitDetails) {
-                        if (leg.origin?.lat != null && leg.origin?.lng != null) {
-                          stations.push({
-                            latitude: leg.origin.lat,
-                            longitude: leg.origin.lng,
-                            title: td.departureStop,
-                            type: 'transfer',
-                          });
-                        }
-                        if (leg.destination?.lat != null && leg.destination?.lng != null) {
-                          stations.push({
-                            latitude: leg.destination.lat,
-                            longitude: leg.destination.lng,
-                            title: td.arrivalStop,
-                            type: 'transfer',
-                          });
-                        }
-                      }
-                    }
-                  }
-                }
-                setTransitWaypoints(stations);
-
-                // バックグラウンドで実ポリライン取得 → 再描画
-                const capturedSearchId = currentSearchId;
-                enhanceRoutesWithRealPolylines(transitResult.routes).then(
-                  (enhanced) => {
-                    // 古いリクエストの結果を無視
-                    if (capturedSearchId !== searchIdRef.current) return;
-                    setMultiModalResults(enhanced);
-                  },
-                ).catch((err) => {
-                  console.warn('[Route] ポリライン強化失敗（フォールバック使用）:', err);
-                });
-              } else {
-                setMultiModalResults([]);
-                setIsMultiModal(false);
-                if (!transitResult.originStation) {
-                  setErrorMessage('出発地の最寄り駅が見つかりません');
-                } else if (!transitResult.destStation) {
-                  setErrorMessage('目的地の最寄り駅が見つかりません');
-                } else {
-                  setErrorMessage('このルートの電車経路が見つかりませんでした');
-                }
-              }
-            } catch (transitErr) {
-              console.error('[Route] transitRouter エラー:', transitErr);
-              setErrorMessage('電車ルートの検索に失敗しました。');
+              customRouterResult = searchTransitRoute(oCoords, dCoords);
+            } catch (err) {
+              console.warn('[Route] 自前ルーター失敗:', err);
             }
-            setIsSearching(false);
+
+            // Google Transit を WebView に送信
+            // handleDirectionsResult で結果を受信する
+            setDirectionsReq(undefined);
+            requestAnimationFrame(() => {
+              setDirectionsReq({
+                originLat: oCoords.lat,
+                originLng: oCoords.lng,
+                destLat: dCoords.lat,
+                destLng: dCoords.lng,
+                mode: 'transit',
+              });
+            });
+
+            // Google結果のタイムアウト時は自前ルーター結果にフォールバック
+            setTimeout(() => {
+              if (capturedSearchId !== searchIdRef.current) return;
+              setIsSearching((current) => {
+                if (!current) return current; // Google結果が既に届いている
+                // タイムアウト: 自前ルーター結果にフォールバック
+                console.warn('[Route] Google Transit タイムアウト → 自前ルーターにフォールバック');
+                if (customRouterResult && customRouterResult.routes.length > 0) {
+                  const stations = buildTransitStationMarkers(customRouterResult);
+                  setMultiModalResults(customRouterResult.routes);
+                  setIsMultiModal(true);
+                  setSelectedRouteId(customRouterResult.routes[0].routeId);
+                  setTransitWaypoints(stations);
+                  // ポリライン強化
+                  enhanceRoutesWithRealPolylines(customRouterResult.routes).then(
+                    (enhanced) => {
+                      if (capturedSearchId !== searchIdRef.current) return;
+                      setMultiModalResults(enhanced);
+                    },
+                  ).catch(() => {});
+                } else {
+                  setErrorMessage('電車ルートが見つかりませんでした');
+                }
+                setDirectionsReq(undefined);
+                return false;
+              });
+            }, 12000);
           } else {
             if (currentSearchId !== searchIdRef.current) return;
             setDirectionsReq(undefined);
@@ -1835,7 +1895,7 @@ export default function RouteScreen() {
                 longitude: tw.longitude,
                 title: tw.title,
                 mode: 'transit' as const,
-                label: tw.title,
+                label: tw.label || tw.title,
               })),
               // おすすめスポットマーカー
               ...(showSpots ? recommendedSpots.map((spot) => ({

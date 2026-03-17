@@ -27,8 +27,8 @@ export interface DirectionsResult {
           line: { name: string; short_name?: string; color?: string; vehicle: { type: string } };
           departure_stop: { name: string };
           arrival_stop: { name: string };
-          departure_time?: { text: string };
-          arrival_time?: { text: string };
+          departure_time?: { text: string; value?: number };
+          arrival_time?: { text: string; value?: number };
           num_stops: number;
           headsign?: string;
         };
@@ -726,8 +726,8 @@ function buildMapHtml(
                           },
                           departure_stop: { name: (step.transit.departure_stop || {}).name || '' },
                           arrival_stop: { name: (step.transit.arrival_stop || {}).name || '' },
-                          departure_time: step.transit.departure_time ? { text: step.transit.departure_time.text || '' } : undefined,
-                          arrival_time: step.transit.arrival_time ? { text: step.transit.arrival_time.text || '' } : undefined,
+                          departure_time: step.transit.departure_time ? { text: step.transit.departure_time.text || '', value: step.transit.departure_time.value || 0 } : undefined,
+                          arrival_time: step.transit.arrival_time ? { text: step.transit.arrival_time.text || '', value: step.transit.arrival_time.value || 0 } : undefined,
                           num_stops: step.transit.num_stops || 0,
                           headsign: step.transit.headsign || '',
                         };

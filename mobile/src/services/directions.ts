@@ -125,8 +125,8 @@ function parseTransitDetailFromStep(transitDetails: {
   line: { name: string; short_name?: string; color?: string; vehicle: { type: string } };
   departure_stop: { name: string };
   arrival_stop: { name: string };
-  departure_time?: { text: string };
-  arrival_time?: { text: string };
+  departure_time?: { text: string; value?: number };
+  arrival_time?: { text: string; value?: number };
   num_stops: number;
   headsign?: string;
 }): TransitDetail {
@@ -214,47 +214,104 @@ export function parseDirectionsResult(
     }
 
     route.legs.forEach((leg, legIndex) => {
-      const steps: RouteStep[] = [];
-      const transitDetails: TransitDetail[] = [];
+      if (mode === 'transit') {
+        // 交通機関モード: 各ステップを個別の WaypointLeg に分割
+        // [徒歩, 山手線, 徒歩, 中央線, 徒歩] → 5つの WaypointLeg
+        const rawSteps = leg.steps ?? [];
 
-      (leg.steps ?? []).forEach((rawStep, idx) => {
-        const step = parseStepFromDirectionsResult(rawStep, idx);
-        steps.push(step);
+        rawSteps.forEach((rawStep, idx) => {
+          const step = parseStepFromDirectionsResult(rawStep, idx);
+          allSteps.push(step);
 
-        if (step.transitDetail) {
-          transitDetails.push(step.transitDetail);
-        }
-      });
+          const stepDistance = rawStep.distance?.value ?? 0;
+          const stepDuration = Math.ceil((rawStep.duration?.value ?? 0) / 60);
+          totalDistance += stepDistance;
+          totalDuration += stepDuration;
 
-      const legDistance = leg.distance?.value ?? 0;
-      const legDuration = Math.ceil((leg.duration?.value ?? 0) / 60);
+          const stepOrigin = {
+            lat: rawStep.start_location?.lat ?? 0,
+            lng: rawStep.start_location?.lng ?? 0,
+          };
+          const stepDest = {
+            lat: rawStep.end_location?.lat ?? 0,
+            lng: rawStep.end_location?.lng ?? 0,
+          };
 
-      totalDistance += legDistance;
-      totalDuration += legDuration;
-      allSteps.push(...steps);
+          if (rawStep.travel_mode === 'TRANSIT' && step.transitDetail) {
+            // 交通機関ステップ → transit の WaypointLeg
+            const waypointLeg: WaypointLeg = {
+              legIndex: legs.length,
+              mode: 'transit',
+              origin: stepOrigin,
+              destination: stepDest,
+              originName: step.transitDetail.departureStop,
+              destinationName: step.transitDetail.arrivalStop,
+              distanceMeters: stepDistance,
+              durationMinutes: stepDuration,
+              steps: [step],
+              transitDetails: [step.transitDetail],
+            };
+            legs.push(waypointLeg);
+          } else {
+            // 徒歩ステップ → walking の WaypointLeg
+            const waypointLeg: WaypointLeg = {
+              legIndex: legs.length,
+              mode: 'walking',
+              origin: stepOrigin,
+              destination: stepDest,
+              originName: step.instruction || '徒歩',
+              destinationName: '徒歩',
+              distanceMeters: stepDistance,
+              durationMinutes: stepDuration,
+              steps: [step],
+            };
+            legs.push(waypointLeg);
+          }
+        });
+      } else {
+        // 非交通機関モード（walking, driving, bicycling）: 従来通り1つの WaypointLeg にまとめる
+        const steps: RouteStep[] = [];
+        const transitDetails: TransitDetail[] = [];
 
-      // BUG #4 修正: steps が空の場合は leg レベルの start/end location を使用
-      const legOrigin = (leg.steps && leg.steps.length > 0)
-        ? { lat: leg.steps[0].start_location?.lat ?? 0, lng: leg.steps[0].start_location?.lng ?? 0 }
-        : { lat: leg.start_location?.lat ?? 0, lng: leg.start_location?.lng ?? 0 };
-      const legDest = (leg.steps && leg.steps.length > 0)
-        ? { lat: leg.steps[leg.steps.length - 1].end_location?.lat ?? 0, lng: leg.steps[leg.steps.length - 1].end_location?.lng ?? 0 }
-        : { lat: leg.end_location?.lat ?? 0, lng: leg.end_location?.lng ?? 0 };
+        (leg.steps ?? []).forEach((rawStep, idx) => {
+          const step = parseStepFromDirectionsResult(rawStep, idx);
+          steps.push(step);
 
-      const waypointLeg: WaypointLeg = {
-        legIndex,
-        mode,
-        origin: legOrigin,
-        destination: legDest,
-        originName: leg.start_address ?? '',
-        destinationName: leg.end_address ?? '',
-        distanceMeters: legDistance,
-        durationMinutes: legDuration,
-        steps,
-        transitDetails: transitDetails.length > 0 ? transitDetails : undefined,
-      };
+          if (step.transitDetail) {
+            transitDetails.push(step.transitDetail);
+          }
+        });
 
-      legs.push(waypointLeg);
+        const legDistance = leg.distance?.value ?? 0;
+        const legDuration = Math.ceil((leg.duration?.value ?? 0) / 60);
+
+        totalDistance += legDistance;
+        totalDuration += legDuration;
+        allSteps.push(...steps);
+
+        // BUG #4 修正: steps が空の場合は leg レベルの start/end location を使用
+        const legOrigin = (leg.steps && leg.steps.length > 0)
+          ? { lat: leg.steps[0].start_location?.lat ?? 0, lng: leg.steps[0].start_location?.lng ?? 0 }
+          : { lat: leg.start_location?.lat ?? 0, lng: leg.start_location?.lng ?? 0 };
+        const legDest = (leg.steps && leg.steps.length > 0)
+          ? { lat: leg.steps[leg.steps.length - 1].end_location?.lat ?? 0, lng: leg.steps[leg.steps.length - 1].end_location?.lng ?? 0 }
+          : { lat: leg.end_location?.lat ?? 0, lng: leg.end_location?.lng ?? 0 };
+
+        const waypointLeg: WaypointLeg = {
+          legIndex,
+          mode,
+          origin: legOrigin,
+          destination: legDest,
+          originName: leg.start_address ?? '',
+          destinationName: leg.end_address ?? '',
+          distanceMeters: legDistance,
+          durationMinutes: legDuration,
+          steps,
+          transitDetails: transitDetails.length > 0 ? transitDetails : undefined,
+        };
+
+        legs.push(waypointLeg);
+      }
     });
 
     // 警告の生成
