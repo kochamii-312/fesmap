@@ -379,7 +379,7 @@ export const searchNearbyPlaces = async (
     const placeLat = place.geometry.location.lat;
     const placeLng = place.geometry.location.lng;
     // 2点間の距離を簡易計算（ハバーサイン）
-    const distanceFromRoute = haversineDistance(lat, lng, placeLat, placeLng);
+    const distanceMeters = Math.round(haversineDistance(lat, lng, placeLat, placeLng));
 
     return {
       spotId: place.place_id,
@@ -387,7 +387,9 @@ export const searchNearbyPlaces = async (
       category: category ?? mapPlaceTypeToCategory(place.types),
       location: { lat: placeLat, lng: placeLng },
       accessibilityScore: 50, // デフォルトスコア（詳細取得時に計算）
-      distanceFromRoute: Math.round(distanceFromRoute),
+      distanceMeters,
+      distanceFromRoute: distanceMeters,
+      wheelchairAccessible: false,
     };
   });
 };

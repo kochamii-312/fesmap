@@ -158,7 +158,7 @@ export async function searchYahooLocalSpots(
   const distKm = Math.min(radiusMeters / 1000, 50);
 
   // デフォルトキーワード
-  const keywords = queries.length > 0 ? queries : ['カフェ', 'トイレ', '休憩所'];
+  const keywords = queries.length > 0 ? queries : ['カフェ', 'レストラン', 'コンビニ'];
 
   // 各キーワードを並行検索
   const results = await Promise.allSettled(
@@ -169,10 +169,13 @@ export async function searchYahooLocalSpots(
   const seen = new Set<string>();
   const merged: SpotSummary[] = [];
   for (const result of results) {
-    if (result.status !== 'fulfilled') continue;
+    if (result.status !== 'fulfilled') {
+      console.warn('[Yahoo] キーワード検索が失敗:', result.reason);
+      continue;
+    }
     for (const spot of result.value) {
-      if (!seen.has(spot.name)) {
-        seen.add(spot.name);
+      if (!seen.has(spot.spotId)) {
+        seen.add(spot.spotId);
         merged.push(spot);
       }
     }

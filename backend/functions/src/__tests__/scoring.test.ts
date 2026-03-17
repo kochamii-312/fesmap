@@ -334,7 +334,9 @@ describe("アクセシビリティスコア計算", () => {
           category: "restroom",
           location: { lat: 35.68, lng: 139.76 },
           accessibilityScore: 80,
+          distanceMeters: 50,
           distanceFromRoute: 50,
+          wheelchairAccessible: false,
         },
       ];
 
@@ -354,10 +356,10 @@ describe("アクセシビリティスコア計算", () => {
         createStep({ hasStairs: true }), // -30ペナルティ
       ];
       const nearbySpots: SpotSummary[] = [
-        { spotId: "s1", name: "トイレ1", category: "restroom", location: { lat: 35.68, lng: 139.76 }, accessibilityScore: 80, distanceFromRoute: 50 },
-        { spotId: "s2", name: "トイレ2", category: "restroom", location: { lat: 35.68, lng: 139.76 }, accessibilityScore: 80, distanceFromRoute: 50 },
-        { spotId: "s3", name: "休憩所1", category: "rest_area", location: { lat: 35.68, lng: 139.76 }, accessibilityScore: 80, distanceFromRoute: 50 },
-        { spotId: "s4", name: "公園1", category: "park", location: { lat: 35.68, lng: 139.76 }, accessibilityScore: 80, distanceFromRoute: 50 },
+        { spotId: "s1", name: "トイレ1", category: "restroom", location: { lat: 35.68, lng: 139.76 }, accessibilityScore: 80, distanceMeters: 50, distanceFromRoute: 50, wheelchairAccessible: false },
+        { spotId: "s2", name: "トイレ2", category: "restroom", location: { lat: 35.68, lng: 139.76 }, accessibilityScore: 80, distanceMeters: 50, distanceFromRoute: 50, wheelchairAccessible: false },
+        { spotId: "s3", name: "休憩所1", category: "rest_area", location: { lat: 35.68, lng: 139.76 }, accessibilityScore: 80, distanceMeters: 50, distanceFromRoute: 50, wheelchairAccessible: false },
+        { spotId: "s4", name: "公園1", category: "park", location: { lat: 35.68, lng: 139.76 }, accessibilityScore: 80, distanceMeters: 50, distanceFromRoute: 50, wheelchairAccessible: false },
       ];
 
       const score = calculateRouteScore(steps, profile, nearbySpots);
@@ -372,7 +374,7 @@ describe("アクセシビリティスコア計算", () => {
       });
       const steps = [createStep()]; // ペナルティなし
       const nearbySpots: SpotSummary[] = [
-        { spotId: "s1", name: "トイレ", category: "restroom", location: { lat: 35.68, lng: 139.76 }, accessibilityScore: 80, distanceFromRoute: 50 },
+        { spotId: "s1", name: "トイレ", category: "restroom", location: { lat: 35.68, lng: 139.76 }, accessibilityScore: 80, distanceMeters: 50, distanceFromRoute: 50, wheelchairAccessible: false },
       ];
 
       const score = calculateRouteScore(steps, profile, nearbySpots);
@@ -511,7 +513,7 @@ describe("アクセシビリティスコア計算", () => {
         createStep({ hasStairs: true }),  // stairsPenalty: 30 * 1.5 = 45
       ];
       const nearbySpots: SpotSummary[] = [
-        { spotId: "s1", name: "トイレ", category: "restroom", location: { lat: 35.68, lng: 139.76 }, accessibilityScore: 80, distanceFromRoute: 50 },
+        { spotId: "s1", name: "トイレ", category: "restroom", location: { lat: 35.68, lng: 139.76 }, accessibilityScore: 80, distanceMeters: 50, distanceFromRoute: 50, wheelchairAccessible: false },
       ];
 
       const weighted = calculateWeightedRouteScore(steps, profile, nearbySpots);

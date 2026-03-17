@@ -137,7 +137,12 @@ export interface SpotSummary {
   category: SpotCategory;
   location: LatLng;
   accessibilityScore: number;
+  /** フロントエンド向けフィールド名 */
+  distanceMeters: number;
+  /** 後方互換性のため残す（distanceMeters と同値） */
   distanceFromRoute: number;
+  /** 車椅子アクセス可否 */
+  wheelchairAccessible: boolean;
 }
 
 export interface RouteResult {

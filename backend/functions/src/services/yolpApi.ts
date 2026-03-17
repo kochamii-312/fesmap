@@ -151,7 +151,7 @@ export const searchNearbyYOLP = async (
     const spotLng = coordinates[0];
     const spotLat = coordinates[1];
 
-    const distanceFromRoute = Math.round(haversineDistance(lat, lng, spotLat, spotLng));
+    const distanceMeters = Math.round(haversineDistance(lat, lng, spotLat, spotLng));
 
     spots.push({
       spotId: feature.Property?.Gid ?? `yolp_${feature.Id}`,
@@ -159,7 +159,9 @@ export const searchNearbyYOLP = async (
       category: mapYolpCategory(feature.Category),
       location: { lat: spotLat, lng: spotLng },
       accessibilityScore: 50,
-      distanceFromRoute,
+      distanceMeters,
+      distanceFromRoute: distanceMeters,
+      wheelchairAccessible: false,
     });
 
     return spots;
