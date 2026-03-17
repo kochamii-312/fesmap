@@ -3,6 +3,7 @@
 
 import { LatLng, SpotSummary } from '../types';
 import { getNearbySpots, getNearbySpotsByYOLP } from './api';
+import { searchYahooLocalSpots } from './yahooLocal';
 import { UnifiedUserNeeds } from './userNeeds';
 
 // スコア付きスポット
@@ -244,18 +245,23 @@ export async function fetchPersonalizedSpots(
   needs: UnifiedUserNeeds,
   radiusMeters: number = 500,
 ): Promise<ScoredSpot[]> {
-  // Google と YOLP を並行で取得
-  const [googleResult, yolpResult] = await Promise.allSettled([
+  // Google + バックエンドYOLP + クライアント直接YOLP を並行取得
+  const [googleResult, backendYolpResult, clientYolpResult] = await Promise.allSettled([
     getNearbySpots(destination.lat, destination.lng, radiusMeters),
     getNearbySpotsByYOLP(destination.lat, destination.lng, radiusMeters),
+    searchYahooLocalSpots(destination.lat, destination.lng, radiusMeters, 'カフェ', 'レストラン', 'コンビニ'),
   ]);
 
   const googleSpots = googleResult.status === 'fulfilled' ? googleResult.value : [];
-  const yolpSpots = yolpResult.status === 'fulfilled' ? yolpResult.value : [];
+  const backendYolpSpots = backendYolpResult.status === 'fulfilled' ? backendYolpResult.value : [];
+  // バックエンドYOLPが取得できなかった場合はクライアント直接YOLPを使用
+  const yolpSpots = backendYolpSpots.length > 0
+    ? backendYolpSpots
+    : (clientYolpResult.status === 'fulfilled' ? clientYolpResult.value : []);
 
   let rawSpots: SpotSummary[];
   if (googleSpots.length === 0 && yolpSpots.length === 0) {
-    // 両方失敗時はモックデータにフォールバック
+    // 全て失敗時はモックデータにフォールバック
     rawSpots = generateMockSpots(destination, needs);
   } else {
     rawSpots = mergeSpots(googleSpots, yolpSpots);
