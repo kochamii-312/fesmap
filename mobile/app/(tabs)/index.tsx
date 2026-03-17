@@ -108,6 +108,7 @@ export default function HomeScreen() {
   const [searchText, setSearchText] = useState('');
   const [nearbySpots, setNearbySpots] = useState<SpotSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [debugInfo, setDebugInfo] = useState('loading...');
   const [initialRegion, setInitialRegion] = useState<Region>(DEFAULT_REGION);
   const initialRegionSetRef = useRef(false); // initialRegion は一度だけ設定
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
@@ -135,6 +136,15 @@ export default function HomeScreen() {
       const yolpSpots = backendYolpSpots.length > 0
         ? backendYolpSpots
         : (clientYolpResult.status === 'fulfilled' ? clientYolpResult.value : []);
+
+      // デバッグ情報（一時的）
+      const yolpKey = process.env.EXPO_PUBLIC_YOLP_APP_ID ?? 'UNSET';
+      setDebugInfo(
+        `G:${googleResult.status}(${googleSpots.length}) ` +
+        `BY:${backendYolpResult.status}(${backendYolpSpots.length}) ` +
+        `CY:${clientYolpResult.status}(${clientYolpResult.status === 'fulfilled' ? clientYolpResult.value.length : 'err'}) ` +
+        `KEY:${yolpKey.substring(0, 8)}...`
+      );
 
       if (googleSpots.length === 0 && yolpSpots.length === 0) {
         setNearbySpots(mockNearbySpots(lat, lng));
@@ -345,6 +355,11 @@ export default function HomeScreen() {
           />
         ))}
       </MapView>
+
+      {/* デバッグ情報（一時的） */}
+      <View style={{ position: 'absolute', top: Platform.OS === 'ios' ? 100 : 52, left: 16, right: 16, zIndex: 200, backgroundColor: 'rgba(0,0,0,0.8)', borderRadius: 8, padding: 8 }}>
+        <Text style={{ color: '#0f0', fontSize: 11, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>{debugInfo}</Text>
+      </View>
 
       {/* 検索バー */}
       <View style={styles.searchBarContainer}>
