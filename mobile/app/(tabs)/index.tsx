@@ -14,6 +14,7 @@ import MapView, { Marker, Region } from '../../src/components/MapViewWrapper';
 import { useRouter } from 'expo-router';
 import { SpotSummary } from '../../src/types';
 import { getNearbySpots, getNearbySpotsByYOLP, getPlaceSuggestions, geocodeAddress } from '../../src/services/api';
+import { searchYahooLocalSpots } from '../../src/services/yahooLocal';
 import * as Location from 'expo-location';
 
 // デフォルト位置（東京駅付近）
@@ -102,7 +103,6 @@ function mockNearbySpots(centerLat: number, centerLng: number): SpotSummary[] {
   ];
 }
 
-
 export default function HomeScreen() {
   const router = useRouter();
   const [searchText, setSearchText] = useState('');
@@ -119,16 +119,22 @@ export default function HomeScreen() {
   const suggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mapRef = useRef<any>(null);
 
-  // 周辺スポット取得（Google + YOLP 並行取得）
+  // 周辺スポット取得（バックエンドAPI + Yahoo YOLP 並行取得）
   const fetchNearbySpots = useCallback(async (lat: number, lng: number) => {
     setIsLoading(true);
     try {
-      const [googleResult, yolpResult] = await Promise.allSettled([
+      // バックエンド経由のGoogle + YOLPと、クライアント直接のYahoo YOLPを並行取得
+      const [googleResult, backendYolpResult, clientYolpResult] = await Promise.allSettled([
         getNearbySpots(lat, lng),
         getNearbySpotsByYOLP(lat, lng),
+        searchYahooLocalSpots(lat, lng, 1000, 'カフェ OR トイレ OR 休憩'),
       ]);
       const googleSpots = googleResult.status === 'fulfilled' ? googleResult.value : [];
-      const yolpSpots = yolpResult.status === 'fulfilled' ? yolpResult.value : [];
+      const backendYolpSpots = backendYolpResult.status === 'fulfilled' ? backendYolpResult.value : [];
+      // バックエンドYOLPが取得できなかった場合はクライアント直接のYOLPを使用
+      const yolpSpots = backendYolpSpots.length > 0
+        ? backendYolpSpots
+        : (clientYolpResult.status === 'fulfilled' ? clientYolpResult.value : []);
 
       if (googleSpots.length === 0 && yolpSpots.length === 0) {
         setNearbySpots(mockNearbySpots(lat, lng));
