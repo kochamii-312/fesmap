@@ -16,4 +16,5 @@ export const PREFER_OPTIONS = {
   restroom: { label: 'トイレ', icon: '🚻' },
   rest_area: { label: '休憩所', icon: '🪑' },
   covered: { label: '屋根あり', icon: '⛱️' },
+  cafe: { label: 'カフェ', icon: '☕' },
 };
