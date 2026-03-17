@@ -4,6 +4,7 @@ import SwiftUI
 
 // MARK: - モックデータ
 
+@MainActor
 enum PreviewMockData {
     // スポット概要のモックデータ
     static let spots: [SpotSummary] = [
