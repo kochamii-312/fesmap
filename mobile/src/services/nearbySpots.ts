@@ -15,6 +15,7 @@ export interface ScoredSpot extends SpotSummary {
 // カテゴリラベル
 const CATEGORY_LABELS: Record<string, string> = {
   restroom: 'トイレ',
+  accessible_restroom: '多機能トイレ',
   rest_area: '休憩所',
   cafe: 'カフェ',
   elevator: 'エレベーター',
@@ -44,7 +45,10 @@ function scoreSpot(spot: SpotSummary, needs: UnifiedUserNeeds): ScoredSpot {
         score += 30;
         reasons.push('車椅子対応');
       }
-      if (spot.category === 'restroom') {
+      if (spot.category === 'accessible_restroom') {
+        score += 30;
+        reasons.push('多機能トイレ');
+      } else if (spot.category === 'restroom') {
         score += 20;
         reasons.push('トイレ');
       }
@@ -58,6 +62,10 @@ function scoreSpot(spot: SpotSummary, needs: UnifiedUserNeeds): ScoredSpot {
       if (spot.category === 'nursing_room') {
         score += 25;
         reasons.push('授乳室');
+      }
+      if (spot.category === 'accessible_restroom') {
+        score += 25;
+        reasons.push('多機能トイレ');
       }
       if (spot.category === 'elevator') {
         score += 20;
@@ -101,7 +109,10 @@ function scoreSpot(spot: SpotSummary, needs: UnifiedUserNeeds): ScoredSpot {
       score += 15;
       if (!reasons.includes('授乳室')) reasons.push('授乳室');
     }
-    if (spot.category === 'restroom') {
+    if (spot.category === 'accessible_restroom') {
+      score += 15;
+      if (!reasons.includes('多機能トイレ')) reasons.push('多機能トイレ');
+    } else if (spot.category === 'restroom') {
       score += 10;
     }
   }
@@ -111,12 +122,20 @@ function scoreSpot(spot: SpotSummary, needs: UnifiedUserNeeds): ScoredSpot {
       if (!reasons.includes('休憩可能')) reasons.push('休憩可能');
     }
   }
+  if (needs.companions.includes('disability')) {
+    if (spot.category === 'accessible_restroom') {
+      score += 20;
+      if (!reasons.includes('多機能トイレ')) reasons.push('多機能トイレ');
+    }
+  }
 
   // 希望条件に応じたブースト
+  const isRestroom = spot.category === 'restroom' || spot.category === 'accessible_restroom';
   for (const pref of needs.preferConditions) {
-    if (pref === 'restroom' && spot.category === 'restroom') {
-      score += 20;
-      if (!reasons.includes('トイレ')) reasons.push('トイレ');
+    if (pref === 'restroom' && isRestroom) {
+      score += spot.category === 'accessible_restroom' ? 25 : 20;
+      const label = CATEGORY_LABELS[spot.category];
+      if (!reasons.includes(label)) reasons.push(label);
     }
     if (pref === 'rest_area' && (spot.category === 'rest_area' || spot.category === 'bench')) {
       score += 20;
@@ -178,7 +197,7 @@ function generateMockSpots(destination: LatLng, needs: UnifiedUserNeeds): SpotSu
 
   // 車椅子ユーザー向け
   if (needs.mobilityType === 'wheelchair') {
-    addSpot('多機能トイレ', 'restroom', 0.001, 0.0005, 150, 98, true);
+    addSpot('多機能トイレ', 'accessible_restroom', 0.001, 0.0005, 150, 98, true);
     addSpot('スロープ付き入口', 'ramp', -0.0008, -0.0005, 90, 92, true);
   }
 
@@ -196,7 +215,8 @@ function generateMockSpots(destination: LatLng, needs: UnifiedUserNeeds): SpotSu
 
   // 希望条件に応じた追加
   if (needs.preferConditions.includes('restroom')) {
-    addSpot('車椅子対応トイレ', 'restroom', -0.001, 0.0003, 140, 92, true);
+    addSpot('車椅子対応トイレ', 'accessible_restroom', -0.001, 0.0003, 140, 92, true);
+    addSpot('公衆トイレ', 'restroom', 0.0006, -0.0008, 110, 70, false);
   }
   if (needs.preferConditions.includes('rest_area')) {
     addSpot('公園休憩エリア', 'rest_area', 0.001, -0.001, 160, 78, true);
@@ -248,6 +268,8 @@ export function buildSearchKeywords(needs: UnifiedUserNeeds): string[] {
     switch (pref) {
       case 'restroom':
         keywords.add('トイレ');
+        keywords.add('公衆トイレ');
+        keywords.add('多機能トイレ');
         break;
       case 'rest_area':
         keywords.add('休憩所');
@@ -262,11 +284,13 @@ export function buildSearchKeywords(needs: UnifiedUserNeeds): string[] {
   // 移動手段に基づくキーワード追加
   switch (needs.mobilityType) {
     case 'wheelchair':
-      keywords.add('トイレ'); // 多機能トイレの検索
+      keywords.add('多機能トイレ');
+      keywords.add('トイレ');
       keywords.add('エレベーター');
       break;
     case 'stroller':
       keywords.add('授乳室');
+      keywords.add('多機能トイレ');
       keywords.add('トイレ');
       break;
     case 'cane':
@@ -281,6 +305,10 @@ export function buildSearchKeywords(needs: UnifiedUserNeeds): string[] {
   }
   if (needs.companions.includes('elderly')) {
     keywords.add('休憩所');
+    keywords.add('トイレ');
+  }
+  if (needs.companions.includes('disability')) {
+    keywords.add('多機能トイレ');
     keywords.add('トイレ');
   }
 

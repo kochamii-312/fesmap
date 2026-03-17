@@ -28,10 +28,17 @@ interface YOLPFeature {
 }
 
 // YOLPカテゴリ → アプリカテゴリのマッピング
-function mapCategory(yolpCategories?: string[]): string {
+function mapCategory(yolpCategories?: string[], name?: string): string {
   if (!yolpCategories || yolpCategories.length === 0) return 'other';
   const cat = yolpCategories.join(' ');
-  if (cat.includes('トイレ')) return 'restroom';
+  const fullText = cat + ' ' + (name ?? '');
+  // 多機能・多目的・車椅子対応トイレは区別する
+  if (cat.includes('トイレ') || fullText.includes('トイレ')) {
+    if (fullText.includes('多機能') || fullText.includes('多目的') || fullText.includes('バリアフリー') || fullText.includes('車椅子') || fullText.includes('車いす') || fullText.includes('ユニバーサル')) {
+      return 'accessible_restroom';
+    }
+    return 'restroom';
+  }
   if (cat.includes('カフェ') || cat.includes('喫茶')) return 'cafe';
   if (cat.includes('レストラン') || cat.includes('食堂') || cat.includes('飲食')) return 'restaurant';
   if (cat.includes('公園') || cat.includes('庭園')) return 'park';
@@ -110,7 +117,7 @@ async function fetchYolpSpots(
       if (isNaN(spotLat) || isNaN(spotLng)) continue;
 
       const distance = calcDistance(lat, lng, spotLat, spotLng);
-      const category = mapCategory(feature.Category);
+      const category = mapCategory(feature.Category, feature.Name);
 
       spots.push({
         spotId: feature.Property?.Gid ?? feature.Id,
