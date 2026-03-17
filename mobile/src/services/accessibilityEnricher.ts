@@ -5,6 +5,10 @@ import { MultiModalRoute, ElevationProfile, OsmBarrier, RouteStep, SlopeWarningL
 import { UnifiedUserNeeds } from './userNeeds';
 import { enrichRouteWithElevation } from './elevation';
 import { enrichRouteWithOsmData } from './overpass';
+import { getHokoukukanAccessibility, HokoukukanAccessibility } from './hokoukukan';
+import { searchNearbyStations, StationAccessibility } from './stationBarrierFree';
+import { searchAccessiblePlacesNearby } from './placesAccessibility';
+import { getNearbyReports, UserReport } from './userReports';
 
 /**
  * ユーザープロファイルと実データに基づいてアクセシビリティスコアを計算する
@@ -87,6 +91,130 @@ export function calculateEnrichedAccessibilityScore(
 
   // 10〜100にクランプ
   return Math.max(10, Math.min(100, score));
+}
+
+/**
+ * 歩行空間ネットワークデータからの追加減点を計算する
+ */
+function applyHokoukukanPenalty(
+  hokoData: HokoukukanAccessibility[],
+  needs: UnifiedUserNeeds,
+): { penalty: number; warnings: string[] } {
+  let penalty = 0;
+  const warnings: string[] = [];
+  const isWheelchair = needs.mobilityType === 'wheelchair';
+  const isStroller = needs.mobilityType === 'stroller';
+
+  for (const data of hokoData) {
+    // 段差チェック
+    if (data.stepHeightCm > 2) {
+      if (isWheelchair) penalty += 20;
+      else if (isStroller) penalty += 15;
+      else penalty += 5;
+      warnings.push(`段差があります（約${data.stepHeightCm}cm）`);
+    }
+    // 勾配チェック
+    if (data.slopePercent > 8) {
+      if (isWheelchair) penalty += 20;
+      else penalty += 10;
+      warnings.push(`急な勾配があります（${data.slopePercent}%）`);
+    } else if (data.slopePercent > 5 && isWheelchair) {
+      penalty += 10;
+      warnings.push(`勾配に注意（${data.slopePercent}%）`);
+    }
+    // 歩道幅チェック
+    if (data.widthMeters < 0.9 && (isWheelchair || isStroller)) {
+      penalty += 15;
+      warnings.push(`歩道幅が狭い区間があります（約${data.widthMeters}m）`);
+    }
+    // 階段・スロープ
+    if (data.isStairsOrRamp && isWheelchair) {
+      penalty += 20;
+      warnings.push('階段またはスロープがあります');
+    }
+    // エレベーターがあればボーナス
+    if (data.hasElevator && isWheelchair) {
+      penalty -= 5; // ボーナス
+    }
+  }
+
+  return { penalty, warnings };
+}
+
+/**
+ * 駅バリアフリー情報からの追加スコア調整
+ */
+function applyStationAccessibilityAdjustment(
+  stations: StationAccessibility[],
+  needs: UnifiedUserNeeds,
+): { penalty: number; warnings: string[] } {
+  let penalty = 0;
+  const warnings: string[] = [];
+  const isWheelchair = needs.mobilityType === 'wheelchair';
+  const isStroller = needs.mobilityType === 'stroller';
+
+  for (const station of stations) {
+    if (isWheelchair || isStroller) {
+      if (!station.hasElevator) {
+        penalty += 15;
+        warnings.push(`${station.stationName}にエレベーターがありません`);
+      }
+      if (!station.barrierFreeRoute) {
+        penalty += 10;
+        warnings.push(`${station.stationName}のバリアフリー経路が未確認です`);
+      }
+      if (station.hasElevator && station.barrierFreeRoute) {
+        penalty -= 5; // バリアフリー完備ボーナス
+      }
+    }
+    if (!station.hasAccessibleToilet && needs.preferConditions.includes('restroom')) {
+      warnings.push(`${station.stationName}に多機能トイレがありません`);
+    }
+  }
+
+  return { penalty, warnings };
+}
+
+/**
+ * ユーザー投稿からの追加スコア調整
+ */
+function applyUserReportAdjustment(
+  reports: UserReport[],
+  needs: UnifiedUserNeeds,
+): { penalty: number; warnings: string[] } {
+  let penalty = 0;
+  const warnings: string[] = [];
+  const isWheelchair = needs.mobilityType === 'wheelchair';
+
+  for (const report of reports) {
+    if (report.type === 'barrier') {
+      switch (report.category) {
+        case 'steps':
+        case 'steep_slope':
+          penalty += isWheelchair ? 15 : 5;
+          warnings.push(`ユーザー報告: ${report.description}`);
+          break;
+        case 'narrow_path':
+        case 'no_sidewalk':
+          penalty += isWheelchair ? 10 : 3;
+          warnings.push(`ユーザー報告: ${report.description}`);
+          break;
+        case 'construction':
+          penalty += 10;
+          warnings.push(`工事情報: ${report.description}`);
+          break;
+        case 'elevator_broken':
+          penalty += isWheelchair ? 20 : 5;
+          warnings.push(`ユーザー報告: ${report.description}`);
+          break;
+      }
+    } else if (report.type === 'accessible') {
+      // アクセシブル報告はボーナス
+      penalty -= 3;
+    }
+  }
+
+  return { penalty, warnings };
 }
 
 /**
@@ -176,16 +304,39 @@ export function generateEnrichedWarnings(
 }
 
 /**
- * ルートに高低差・OSMバリア情報を付加し、アクセシビリティスコアと警告を再計算する
+ * ルートに全データソースのアクセシビリティ情報を付加し、スコアと警告を再計算する
+ * データソース: Google Elevation, OSM Overpass, 歩行空間ネットワーク, 駅バリアフリー,
+ *              Google Places wheelchair, ユーザー投稿
  */
 export async function enrichRouteAccessibility(
   route: MultiModalRoute,
   needs: UnifiedUserNeeds,
 ): Promise<MultiModalRoute> {
-  // 高低差とOSMデータを並列で取得（片方が失敗しても続行）
-  const [elevationResult, osmResult] = await Promise.allSettled([
+  // 全徒歩レッグの代表座標を取得（データクエリ用）
+  const walkingPoints = route.legs
+    .filter((leg) => leg.mode === 'walking')
+    .flatMap((leg) => [leg.origin, leg.destination]);
+  const transitStations = route.legs
+    .filter((leg) => leg.mode === 'transit' && leg.transitDetails)
+    .flatMap((leg) => leg.transitDetails!.map((td) => td.departureStop));
+
+  const midPoint = walkingPoints.length > 0
+    ? walkingPoints[Math.floor(walkingPoints.length / 2)]
+    : route.legs[0]?.origin ?? { lat: 0, lng: 0 };
+
+  // 6つのデータソースを並列で取得（全て失敗しても続行）
+  const [
+    elevationResult,
+    osmResult,
+    hokoResult,
+    stationResult,
+    userReportResult,
+  ] = await Promise.allSettled([
     enrichRouteWithElevation(route),
     enrichRouteWithOsmData(route),
+    getHokoukukanAccessibility(midPoint.lat, midPoint.lng, 500),
+    searchNearbyStations(midPoint.lat, midPoint.lng, 1000),
+    getNearbyReports(midPoint.lat, midPoint.lng, 500),
   ]);
 
   // 結果をマージ
@@ -194,7 +345,6 @@ export async function enrichRouteAccessibility(
   if (elevationResult.status === 'fulfilled') {
     enrichedRoute = { ...enrichedRoute, ...elevationResult.value };
   }
-
   if (osmResult.status === 'fulfilled') {
     enrichedRoute = { ...enrichedRoute, ...osmResult.value };
   }
@@ -202,14 +352,14 @@ export async function enrichRouteAccessibility(
   // 全レグからステップを収集
   const allSteps = enrichedRoute.legs.flatMap((leg) => leg.steps);
 
-  // 乗換回数をカウント（transit レグの数 - 1、ただし最低0）
+  // 乗換回数をカウント
   const transitLegCount = enrichedRoute.legs.filter(
     (leg) => leg.mode === 'transit',
   ).length;
   const transferCount = Math.max(0, transitLegCount - 1);
 
-  // スコア再計算
-  enrichedRoute.accessibilityScore = calculateEnrichedAccessibilityScore(
+  // ベーススコア計算（Elevation + OSM）
+  let score = calculateEnrichedAccessibilityScore(
     allSteps,
     transferCount,
     needs,
@@ -217,13 +367,46 @@ export async function enrichRouteAccessibility(
     enrichedRoute.osmBarriers,
   );
 
-  // 警告再生成
-  enrichedRoute.warnings = generateEnrichedWarnings(
+  // ベース警告生成
+  const warnings = generateEnrichedWarnings(
     allSteps,
     needs,
     enrichedRoute.elevationProfile,
     enrichedRoute.osmBarriers,
   );
+
+  // 歩行空間ネットワークデータの適用
+  if (hokoResult.status === 'fulfilled' && hokoResult.value.length > 0) {
+    const hokoAdj = applyHokoukukanPenalty(hokoResult.value, needs);
+    score -= hokoAdj.penalty;
+    warnings.push(...hokoAdj.warnings);
+  }
+
+  // 駅バリアフリー情報の適用（transitルートのみ）
+  if (stationResult.status === 'fulfilled' && stationResult.value.length > 0 && transitLegCount > 0) {
+    // ルートで使用する駅名に一致するものだけ適用
+    const routeStationNames = new Set(transitStations);
+    const relevantStations = stationResult.value.filter(
+      (s) => routeStationNames.has(s.stationName) || routeStationNames.has(s.stationName + '駅'),
+    );
+    if (relevantStations.length > 0) {
+      const stationAdj = applyStationAccessibilityAdjustment(relevantStations, needs);
+      score -= stationAdj.penalty;
+      warnings.push(...stationAdj.warnings);
+    }
+  }
+
+  // ユーザー投稿の適用
+  if (userReportResult.status === 'fulfilled' && userReportResult.value.length > 0) {
+    const reportAdj = applyUserReportAdjustment(userReportResult.value, needs);
+    score -= reportAdj.penalty;
+    warnings.push(...reportAdj.warnings);
+  }
+
+  // 最終スコアをクランプ
+  enrichedRoute.accessibilityScore = Math.max(10, Math.min(100, score));
+  // 重複警告を除去
+  enrichedRoute.warnings = [...new Set(warnings)];
 
   return enrichedRoute;
 }
