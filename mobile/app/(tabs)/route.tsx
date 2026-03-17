@@ -842,7 +842,10 @@ export default function RouteScreen() {
               const enriched = await Promise.all(
                 parsed.map((r) => enrichRouteAccessibility(r, needs)),
               );
+              // プロファイルに基づくスコア順で再ソート（高スコア＝ユーザーに最適）
+              enriched.sort((a, b) => b.accessibilityScore - a.accessibilityScore);
               setMultiModalResults(enriched);
+              setSelectedRouteId(enriched[0].routeId);
             } catch (err) {
               console.warn('[Route] アクセシビリティ強化失敗:', err);
             }
@@ -897,7 +900,9 @@ export default function RouteScreen() {
                 const enriched = await Promise.all(
                   enhanced.map((r) => enrichRouteAccessibility(r, needs)),
                 );
+                enriched.sort((a, b) => b.accessibilityScore - a.accessibilityScore);
                 setMultiModalResults(enriched);
+                setSelectedRouteId(enriched[0].routeId);
               } catch {}
             })();
           } else {
