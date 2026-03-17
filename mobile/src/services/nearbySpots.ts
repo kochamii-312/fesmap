@@ -236,6 +236,58 @@ function mergeSpots(googleSpots: SpotSummary[], yolpSpots: SpotSummary[]): SpotS
 }
 
 /**
+ * ユーザーニーズに基づいてYOLP検索キーワードを生成
+ * プロファイルの優先条件・移動手段・同行者から動的にキーワードを決定する
+ */
+export function buildSearchKeywords(needs: UnifiedUserNeeds): string[] {
+  // ベースキーワード（全ユーザー共通）
+  const keywords = new Set<string>(['カフェ', 'レストラン', 'コンビニ']);
+
+  // 優先条件（preferConditions）に基づくキーワード追加
+  for (const pref of needs.preferConditions) {
+    switch (pref) {
+      case 'restroom':
+        keywords.add('トイレ');
+        break;
+      case 'rest_area':
+        keywords.add('休憩所');
+        keywords.add('公園');
+        break;
+      case 'covered':
+        keywords.add('屋根');
+        break;
+    }
+  }
+
+  // 移動手段に基づくキーワード追加
+  switch (needs.mobilityType) {
+    case 'wheelchair':
+      keywords.add('トイレ'); // 多機能トイレの検索
+      keywords.add('エレベーター');
+      break;
+    case 'stroller':
+      keywords.add('授乳室');
+      keywords.add('トイレ');
+      break;
+    case 'cane':
+      keywords.add('休憩所');
+      break;
+  }
+
+  // 同行者に基づくキーワード追加
+  if (needs.companions.includes('child')) {
+    keywords.add('授乳室');
+    keywords.add('トイレ');
+  }
+  if (needs.companions.includes('elderly')) {
+    keywords.add('休憩所');
+    keywords.add('トイレ');
+  }
+
+  return [...keywords];
+}
+
+/**
  * 目的地周辺のパーソナライズされたスポットを取得
  * Google Places と Yahoo YOLP を並行取得してマージ
  * API未接続時はニーズに応じたモックデータにフォールバック
@@ -245,11 +297,14 @@ export async function fetchPersonalizedSpots(
   needs: UnifiedUserNeeds,
   radiusMeters: number = 500,
 ): Promise<ScoredSpot[]> {
+  // ニーズに基づく検索キーワードを生成
+  const keywords = buildSearchKeywords(needs);
+
   // Google + バックエンドYOLP + クライアント直接YOLP を並行取得
   const [googleResult, backendYolpResult, clientYolpResult] = await Promise.allSettled([
     getNearbySpots(destination.lat, destination.lng, radiusMeters),
     getNearbySpotsByYOLP(destination.lat, destination.lng, radiusMeters),
-    searchYahooLocalSpots(destination.lat, destination.lng, radiusMeters, 'カフェ', 'レストラン', 'コンビニ'),
+    searchYahooLocalSpots(destination.lat, destination.lng, radiusMeters, ...keywords),
   ]);
 
   const googleSpots = googleResult.status === 'fulfilled' ? googleResult.value : [];

@@ -15,6 +15,8 @@ import { useRouter } from 'expo-router';
 import { SpotSummary } from '../../src/types';
 import { getNearbySpots, getNearbySpotsByYOLP, getPlaceSuggestions, geocodeAddress } from '../../src/services/api';
 import { searchYahooLocalSpots } from '../../src/services/yahooLocal';
+import { buildSearchKeywords } from '../../src/services/nearbySpots';
+import { loadUnifiedNeeds } from '../../src/services/userNeeds';
 import * as Location from 'expo-location';
 
 // デフォルト位置（東京駅付近）
@@ -123,11 +125,14 @@ export default function HomeScreen() {
   const fetchNearbySpots = useCallback(async (lat: number, lng: number) => {
     setIsLoading(true);
     try {
+      // ニーズに基づく検索キーワードを生成
+      const needs = await loadUnifiedNeeds();
+      const keywords = buildSearchKeywords(needs);
       // バックエンド経由のGoogle + YOLPと、クライアント直接のYahoo YOLPを並行取得
       const [googleResult, backendYolpResult, clientYolpResult] = await Promise.allSettled([
         getNearbySpots(lat, lng),
         getNearbySpotsByYOLP(lat, lng),
-        searchYahooLocalSpots(lat, lng, 1000, 'カフェ', 'レストラン', 'コンビニ'),
+        searchYahooLocalSpots(lat, lng, 1000, ...keywords),
       ]);
       const googleSpots = googleResult.status === 'fulfilled' ? googleResult.value : [];
       const backendYolpSpots = backendYolpResult.status === 'fulfilled' ? backendYolpResult.value : [];

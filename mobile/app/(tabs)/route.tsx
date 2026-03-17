@@ -35,7 +35,7 @@ import { searchTransitRoute, enhanceTransitPolylines } from '../../src/services/
 import { geocode } from '../../src/services/geocoding';
 import { GOOGLE_MAPS_API_KEY } from '../../src/components/MapViewWrapper';
 import { loadUnifiedNeeds } from '../../src/services/userNeeds';
-import { fetchPersonalizedSpots, ScoredSpot } from '../../src/services/nearbySpots';
+import { fetchPersonalizedSpots, buildSearchKeywords, ScoredSpot } from '../../src/services/nearbySpots';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const MAP_HEIGHT = SCREEN_HEIGHT * 0.35;
@@ -1295,11 +1295,13 @@ export default function RouteScreen() {
       } catch {
         console.warn('[Route] fetchPersonalizedSpots失敗');
       }
-      // フォールバック: クライアント直接YOLPで取得
+      // フォールバック: クライアント直接YOLPで取得（ニーズに基づくキーワード）
       if (!cancelled) {
         try {
+          const needs = await loadUnifiedNeeds();
+          const keywords = buildSearchKeywords(needs);
           const { searchYahooLocalSpots } = await import('../../src/services/yahooLocal');
-          const yolpSpots = await searchYahooLocalSpots(destCoords.lat, destCoords.lng, 1000, 'カフェ', 'レストラン', 'コンビニ');
+          const yolpSpots = await searchYahooLocalSpots(destCoords.lat, destCoords.lng, 1000, ...keywords);
           if (!cancelled && yolpSpots.length > 0) {
             setRecommendedSpots(yolpSpots.slice(0, 10).map(spot => ({
               ...spot,
