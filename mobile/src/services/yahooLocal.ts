@@ -1,5 +1,6 @@
 // Yahoo! Open Local Platform (YOLP) ローカル検索サービス
 // 周辺スポットをYahoo APIから取得し、おすすめ表示に使用する
+// EXPO_PUBLIC_YOLP_APP_ID 環境変数が必要
 
 import { SpotSummary } from '../types';
 
