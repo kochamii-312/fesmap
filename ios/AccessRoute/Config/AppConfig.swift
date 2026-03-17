@@ -42,17 +42,29 @@ enum AppConfig {
         }
     }
 
+    // MARK: - Firebase設定
+
+    // Firebase APIキー（Info.plistから取得、フォールバック用に空文字）
+    static var firebaseAPIKey: String {
+        Bundle.main.infoDictionary?["FIREBASE_API_KEY"] as? String ?? ""
+    }
+
+    // Google Maps APIキー（Info.plistまたは環境変数から取得）
+    static var googleMapsAPIKey: String {
+        Bundle.main.infoDictionary?["GOOGLE_MAPS_API_KEY"] as? String ?? ""
+    }
+
     // MARK: - API設定
 
     // APIベースURL（環境ごとに切替）
     static var apiBaseURL: String {
         switch environment {
         case .development:
-            return "http://localhost:5001/accessroute/us-central1/api"
+            return "http://localhost:5001/accessroute-18207/asia-northeast1/api/api"
         case .staging:
-            return "https://us-central1-accessroute-staging.cloudfunctions.net/api"
+            return "https://asia-northeast1-accessroute-staging.cloudfunctions.net/api/api"
         case .production:
-            return "https://us-central1-accessroute.cloudfunctions.net/api"
+            return "https://asia-northeast1-accessroute-18207.cloudfunctions.net/api/api"
         }
     }
 

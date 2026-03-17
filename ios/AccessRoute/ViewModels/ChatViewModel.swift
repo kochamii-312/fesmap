@@ -11,6 +11,7 @@ final class ChatViewModel: ObservableObject {
     @Published var suggestedAction: SuggestedAction?
     @Published var shouldNavigateToRoute = false
     @Published var shouldNavigateToSpots = false
+    @Published var followUpSuggestions: [String] = []
 
     // MARK: - 会話フェーズ管理
 
@@ -142,6 +143,8 @@ final class ChatViewModel: ObservableObject {
         extractedNeeds = nil
         suggestedAction = nil
         errorMessage = nil
+        followUpSuggestions = []
+        UserNeedsService.clearChatNeeds()
     }
 
     // アクションボタンタップ処理
@@ -772,10 +775,35 @@ final class ChatViewModel: ObservableObject {
                 avoidConditions: allAvoids.isEmpty ? nil : allAvoids,
                 preferConditions: allPrefers.isEmpty ? nil : allPrefers
             )
+
+            // Save extracted needs
+            if let needs = self.extractedNeeds, needs.hasAnyNeeds {
+                var needsDict: [String: Any] = [:]
+                if let mobility = needs.mobilityType {
+                    needsDict["mobilityType"] = mobility.rawValue
+                }
+                if let companions = needs.companions, !companions.isEmpty {
+                    needsDict["companions"] = companions.map(\.rawValue)
+                }
+                if let avoidConds = needs.avoidConditions, !avoidConds.isEmpty {
+                    needsDict["avoidConditions"] = avoidConds.map(\.rawValue)
+                }
+                if let preferConds = needs.preferConditions, !preferConds.isEmpty {
+                    needsDict["preferConditions"] = preferConds.map(\.rawValue)
+                }
+                let destination = detectDestination(in: allUserTexts)
+                if let dest = destination {
+                    needsDict["destination"] = dest
+                }
+                UserNeedsService.saveChatNeeds(needsDict)
+            }
         }
 
         // suggestedActionの判定（多角的に評価）
         suggestedAction = determineSuggestedAction(currentText: lowered, allTexts: allUserTexts)
+
+        // フォローアップ提案の生成
+        followUpSuggestions = generateFollowUpSuggestions(currentText: lowered, allTexts: allUserTexts)
     }
 
     /// 曖昧な距離表現から最大距離（メートル）を推定
@@ -880,5 +908,63 @@ final class ChatViewModel: ObservableObject {
         }
 
         return nil
+    }
+
+    // MARK: - フォローアップ提案生成
+
+    /// 会話の文脈に応じたフォローアップ提案を生成する
+    private func generateFollowUpSuggestions(currentText: String, allTexts: String) -> [String] {
+        let hasMobility = detectMobilityKeywords(in: allTexts) != nil
+        let hasDestination = detectDestination(in: allTexts) != nil
+        let hasCompanion = detectCompanionKeywords(in: allTexts) != nil
+        let hasSpotType = detectSpotType(in: currentText) != nil
+
+        // 移動手段も目的地もない初期段階
+        if !hasMobility && !hasDestination {
+            return [
+                "車椅子で移動したい",
+                "ベビーカーで出かけたい",
+                "近くのバリアフリートイレを探して",
+            ]
+        }
+
+        // 移動手段はあるが目的地がない
+        if hasMobility && !hasDestination {
+            return [
+                "東京駅に行きたい",
+                "近くのバリアフリースポットを探して",
+                "階段を避けたルートがいい",
+            ]
+        }
+
+        // 目的地はあるが移動手段がない
+        if !hasMobility && hasDestination {
+            return [
+                "車椅子で移動します",
+                "ベビーカーで行きます",
+                "杖を使っています",
+            ]
+        }
+
+        // スポット検索系の会話
+        if hasSpotType {
+            return [
+                "スポット一覧を表示して",
+                "もっと近い場所はある？",
+                "ルート検索もしたい",
+            ]
+        }
+
+        // 移動手段と目的地が揃っている場合
+        if hasMobility && hasDestination {
+            var suggestions = ["ルート検索を開始して"]
+            if !hasCompanion {
+                suggestions.append("高齢者と一緒に行きます")
+            }
+            suggestions.append("途中に休憩所があるルートがいい")
+            return suggestions
+        }
+
+        return []
     }
 }

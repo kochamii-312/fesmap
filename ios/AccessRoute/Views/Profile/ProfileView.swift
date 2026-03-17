@@ -191,7 +191,7 @@ struct ProfileView: View {
         }
     }
 
-    // MARK: - 移動手段セクション
+    // MARK: - 移動手段セクション（絵文字 + カラー付き）
 
     private var mobilitySection: some View {
         Section {
@@ -202,11 +202,10 @@ struct ProfileView: View {
                     }
                 } label: {
                     HStack(spacing: 12) {
-                        // アイコン
-                        Image(systemName: type.iconName)
-                            .font(.title3)
-                            .foregroundStyle(viewModel.mobilityType == type ? AppColors.accent : .secondary)
-                            .frame(width: 32, height: 32)
+                        // 絵文字アイコン
+                        Text(type.emoji)
+                            .font(.title2)
+                            .frame(width: 36, height: 36)
                             .accessibilityHidden(true)
 
                         // ラベルと説明テキスト
@@ -230,14 +229,20 @@ struct ProfileView: View {
                                 .accessibilityHidden(true)
                         }
                     }
-                    .ensureMinimumTapTarget()
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .background(
+                        viewModel.mobilityType == type
+                            ? Color.blue.opacity(0.08) : Color.clear,
+                        in: RoundedRectangle(cornerRadius: 10)
+                    )
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .ensureMinimumTapTarget()
                 .accessibilityLabel("\(type.label) — \(type.descriptionText)")
                 .accessibilityValue(viewModel.mobilityType == type ? "選択中" : "未選択")
                 .accessibilityAddTraits(viewModel.mobilityType == type ? .isSelected : [])
-                .accessibilityHint("タップして移動手段を\(type.label)に変更")
             }
         } header: {
             sectionHeader(title: "移動手段", systemImage: "figure.walk")
@@ -316,22 +321,44 @@ struct ProfileView: View {
                     "\(AccessibilityHelpers.distanceText(meters: viewModel.maxDistanceMeters))、\(AccessibilityHelpers.distanceCategory(meters: viewModel.maxDistanceMeters))"
                 )
 
-                // スライダー
-                Slider(
-                    value: $viewModel.maxDistanceMeters,
-                    in: 100...5000,
-                    step: 100
-                ) {
-                    Text("最大移動距離")
-                } minimumValueLabel: {
-                    Text("100m").font(.caption)
-                } maximumValueLabel: {
-                    Text("5km").font(.caption)
+                // スライダー + ステッパーボタン
+                HStack(spacing: 12) {
+                    // -ボタン
+                    Button {
+                        viewModel.maxDistanceMeters = max(100, viewModel.maxDistanceMeters - 100)
+                    } label: {
+                        Image(systemName: "minus")
+                            .font(.body)
+                            .fontWeight(.bold)
+                            .frame(width: 36, height: 36)
+                            .background(Color(.systemGray5), in: Circle())
+                    }
+                    .disabled(viewModel.maxDistanceMeters <= 100)
+                    .accessibilityLabel("距離を100m減らす")
+
+                    Slider(
+                        value: $viewModel.maxDistanceMeters,
+                        in: 100...5000,
+                        step: 100
+                    )
+                    .accessibilityLabel("最大移動距離")
+                    .accessibilityValue(
+                        AccessibilityHelpers.distanceText(meters: viewModel.maxDistanceMeters)
+                    )
+
+                    // +ボタン
+                    Button {
+                        viewModel.maxDistanceMeters = min(5000, viewModel.maxDistanceMeters + 100)
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.body)
+                            .fontWeight(.bold)
+                            .frame(width: 36, height: 36)
+                            .background(Color(.systemGray5), in: Circle())
+                    }
+                    .disabled(viewModel.maxDistanceMeters >= 5000)
+                    .accessibilityLabel("距離を100m増やす")
                 }
-                .accessibilityLabel("最大移動距離")
-                .accessibilityValue(
-                    "\(AccessibilityHelpers.distanceText(meters: viewModel.maxDistanceMeters))、\(AccessibilityHelpers.distanceCategory(meters: viewModel.maxDistanceMeters))"
-                )
 
                 // 目安マーカー
                 HStack {
@@ -370,38 +397,37 @@ struct ProfileView: View {
 
     private var avoidSection: some View {
         Section {
-            ForEach(AvoidCondition.allCases) { condition in
-                Toggle(isOn: Binding(
-                    get: { viewModel.selectedAvoidConditions.contains(condition) },
-                    set: { _ in
+            // グリッド表示（Expo版に合わせる）
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                ForEach(AvoidCondition.allCases) { condition in
+                    let isSelected = viewModel.selectedAvoidConditions.contains(condition)
+                    Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             viewModel.toggleAvoidCondition(condition)
                         }
-                    }
-                )) {
-                    HStack(spacing: 12) {
-                        Image(systemName: condition.iconName)
-                            .font(.title3)
-                            .foregroundStyle(
-                                viewModel.selectedAvoidConditions.contains(condition)
-                                    ? AppColors.warningText : .secondary
-                            )
-                            .frame(width: 32, height: 32)
-                            .accessibilityHidden(true)
-
-                        VStack(alignment: .leading, spacing: 2) {
+                    } label: {
+                        VStack(spacing: 6) {
+                            Text(condition.emoji)
+                                .font(.title2)
                             Text(condition.label)
-                                .font(.body)
-
-                            Text(condition.descriptionText)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
                         }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(
+                            isSelected ? Color.red.opacity(0.1) : Color(.systemGray6),
+                            in: RoundedRectangle(cornerRadius: 12)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(isSelected ? Color.red.opacity(0.5) : Color.clear, lineWidth: 2)
+                        )
+                        .foregroundStyle(isSelected ? .red : .primary)
                     }
+                    .accessibilityLabel("\(condition.label)")
+                    .accessibilityValue(isSelected ? "回避する" : "回避しない")
                 }
-                .ensureMinimumTapTarget()
-                .accessibilityLabel("\(condition.label) — \(condition.descriptionText)")
-                .accessibilityValue(viewModel.selectedAvoidConditions.contains(condition) ? "回避する" : "回避しない")
             }
         } header: {
             sectionHeader(title: "回避したい条件", systemImage: "exclamationmark.triangle")
@@ -415,38 +441,37 @@ struct ProfileView: View {
 
     private var preferSection: some View {
         Section {
-            ForEach(PreferCondition.allCases) { condition in
-                Toggle(isOn: Binding(
-                    get: { viewModel.selectedPreferConditions.contains(condition) },
-                    set: { _ in
+            // グリッド表示（Expo版に合わせる）
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                ForEach(PreferCondition.allCases) { condition in
+                    let isSelected = viewModel.selectedPreferConditions.contains(condition)
+                    Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             viewModel.togglePreferCondition(condition)
                         }
-                    }
-                )) {
-                    HStack(spacing: 12) {
-                        Image(systemName: condition.iconName)
-                            .font(.title3)
-                            .foregroundStyle(
-                                viewModel.selectedPreferConditions.contains(condition)
-                                    ? AppColors.success : .secondary
-                            )
-                            .frame(width: 32, height: 32)
-                            .accessibilityHidden(true)
-
-                        VStack(alignment: .leading, spacing: 2) {
+                    } label: {
+                        VStack(spacing: 6) {
+                            Text(condition.emoji)
+                                .font(.title2)
                             Text(condition.label)
-                                .font(.body)
-
-                            Text(condition.descriptionText)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
                         }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(
+                            isSelected ? Color.green.opacity(0.1) : Color(.systemGray6),
+                            in: RoundedRectangle(cornerRadius: 12)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(isSelected ? Color.green.opacity(0.5) : Color.clear, lineWidth: 2)
+                        )
+                        .foregroundStyle(isSelected ? .green : .primary)
                     }
+                    .accessibilityLabel("\(condition.label)")
+                    .accessibilityValue(isSelected ? "希望する" : "希望しない")
                 }
-                .ensureMinimumTapTarget()
-                .accessibilityLabel("\(condition.label) — \(condition.descriptionText)")
-                .accessibilityValue(viewModel.selectedPreferConditions.contains(condition) ? "希望する" : "希望しない")
             }
         } header: {
             sectionHeader(title: "希望条件", systemImage: "star")

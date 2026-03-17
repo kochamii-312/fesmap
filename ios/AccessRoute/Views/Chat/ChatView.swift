@@ -115,6 +115,17 @@ struct ChatView: View {
 
     // MARK: - ウェルカムメッセージ
 
+    // サジェストチップの定義（Expo版と同様）
+    private let initialSuggestions = [
+        "車椅子で東京駅に行きたい",
+        "近くのバリアフリートイレを探して",
+        "ベビーカーで移動しやすいルートは？",
+        "エレベーターのある駅を教えて",
+        "高齢者と一緒に観光したい",
+        "雨の日でも歩きやすいルートは？",
+        "休憩できる場所を探して",
+    ]
+
     private var welcomeMessage: some View {
         VStack(spacing: 16) {
             Spacer()
@@ -129,59 +140,68 @@ struct ChatView: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
 
-            VStack(alignment: .leading, spacing: 8) {
-                SuggestionChip(text: "車椅子で東京駅に行きたい")
-                SuggestionChip(text: "近くのバリアフリートイレを探して")
-                SuggestionChip(text: "ベビーカーで移動しやすいルートは？")
+            // サジェストチップ（タップ可能）
+            FlowLayout(spacing: 8) {
+                ForEach(initialSuggestions, id: \.self) { suggestion in
+                    Button {
+                        viewModel.inputText = suggestion
+                        Task { await viewModel.sendMessage() }
+                    } label: {
+                        SuggestionChip(text: suggestion)
+                    }
+                }
             }
             .padding(.top, 8)
 
             Spacer()
         }
         .padding()
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("AIコンシェルジュへようこそ。旅行の相談を入力してください")
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("AIコンシェルジュへようこそ")
     }
 
     // MARK: - アクションボタン
 
+    // アクションカード（Expo版の緑カードスタイル）
     @ViewBuilder
     private func actionButton(for action: SuggestedAction) -> some View {
-        switch action {
-        case .searchRoute:
-            Button {
-                viewModel.handleAction(action)
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "point.topleft.down.to.point.bottomright.curvepath.fill")
-                    Text("ルートを検索する")
-                        .fontWeight(.medium)
+        Button {
+            viewModel.handleAction(action)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: action == .searchRoute
+                    ? "point.topleft.down.to.point.bottomright.curvepath.fill"
+                    : "mappin.and.ellipse")
+                    .font(.title3)
+                    .foregroundStyle(.green)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(action == .searchRoute ? "ルートを検索する" : "スポットを見る")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.primary)
+                    Text(action == .searchRoute
+                        ? "条件に合ったルートを探します"
+                        : "周辺のおすすめスポットを表示します")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .frame(maxWidth: .infinity)
-                .ensureMinimumTapTarget()
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.borderedProminent)
-            .accessibilityLabel("ルートを検索する")
-            .accessibilityHint("ルート検索画面に移動します")
-        case .showSpots:
-            Button {
-                viewModel.handleAction(action)
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "mappin.and.ellipse")
-                    Text("スポットを見る")
-                        .fontWeight(.medium)
-                }
-                .frame(maxWidth: .infinity)
-                .ensureMinimumTapTarget()
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.green)
-            .accessibilityLabel("スポットを見る")
-            .accessibilityHint("スポット一覧画面に移動します")
-        case .askMore:
-            EmptyView()
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(.green.opacity(0.3), lineWidth: 1)
+                    .fill(Color.green.opacity(0.05))
+            )
         }
+        .accessibilityLabel(action == .searchRoute ? "ルートを検索する" : "スポットを見る")
     }
 
     // MARK: - メッセージ入力バー

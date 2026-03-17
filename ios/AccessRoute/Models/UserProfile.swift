@@ -32,6 +32,28 @@ enum MobilityType: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    // 絵文字アイコン
+    var emoji: String {
+        switch self {
+        case .wheelchair: return "♿️"
+        case .stroller: return "👶"
+        case .cane: return "🦯"
+        case .walk: return "🚶"
+        case .other: return "❓"
+        }
+    }
+
+    // テーマカラー名
+    var colorHex: String {
+        switch self {
+        case .wheelchair: return "#007AFF"
+        case .stroller: return "#5856D6"
+        case .cane: return "#FF9500"
+        case .walk: return "#34C759"
+        case .other: return "#8E8E93"
+        }
+    }
+
     // 説明テキスト（選択肢の補足情報）
     var descriptionText: String {
         switch self {
@@ -105,6 +127,16 @@ enum AvoidCondition: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    // 絵文字アイコン
+    var emoji: String {
+        switch self {
+        case .stairs: return "🪜"
+        case .slope: return "⛰️"
+        case .crowd: return "👥"
+        case .dark: return "🌙"
+        }
+    }
+
     // 説明テキスト
     var descriptionText: String {
         switch self {
@@ -121,6 +153,7 @@ enum PreferCondition: String, Codable, CaseIterable, Identifiable {
     case restroom
     case rest_area // swiftlint:disable:this identifier_name
     case covered
+    case cafe
 
     var id: String { rawValue }
 
@@ -129,6 +162,7 @@ enum PreferCondition: String, Codable, CaseIterable, Identifiable {
         case .restroom: return "トイレ"
         case .rest_area: return "休憩所"
         case .covered: return "屋根あり"
+        case .cafe: return "カフェ"
         }
     }
 
@@ -137,6 +171,17 @@ enum PreferCondition: String, Codable, CaseIterable, Identifiable {
         case .restroom: return "toilet"
         case .rest_area: return "bench.and.tree"
         case .covered: return "umbrella.fill"
+        case .cafe: return "cup.and.saucer.fill"
+        }
+    }
+
+    // 絵文字アイコン
+    var emoji: String {
+        switch self {
+        case .restroom: return "🚻"
+        case .rest_area: return "🪑"
+        case .covered: return "☂️"
+        case .cafe: return "☕"
         }
     }
 
@@ -146,6 +191,7 @@ enum PreferCondition: String, Codable, CaseIterable, Identifiable {
         case .restroom: return "バリアフリートイレがあるルート優先"
         case .rest_area: return "ベンチ等の休憩場所を経由"
         case .covered: return "雨天時も安心な屋根付きルート"
+        case .cafe: return "カフェで休憩できるルート"
         }
     }
 }

@@ -1,7 +1,7 @@
 import SwiftUI
 
 // NSCacheベースの画像キャッシュユーティリティ
-final class ImageCache {
+final class ImageCache: @unchecked Sendable {
     static let shared = ImageCache()
 
     private let cache = NSCache<NSString, UIImage>()

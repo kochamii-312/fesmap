@@ -48,35 +48,67 @@ actor APIService {
 
     private init() {}
 
+    // MARK: - トークン取得
+
+    // AuthServiceからトークンを自動取得
+    private func getToken() async throws -> String {
+        guard let token = await AuthService.shared.getIdToken() else {
+            throw APIError.unauthorized
+        }
+        return token
+    }
+
     // MARK: - ユーザープロファイル
 
     // プロファイル取得
-    func getProfile(token: String) async throws -> UserProfile {
+    func getProfile() async throws -> UserProfile {
+        let token = try await getToken()
         return try await request(method: "GET", path: "/auth/profile", token: token)
     }
 
     // プロファイル作成・更新
-    func saveProfile(input: UserProfileInput, token: String) async throws -> UserProfile {
+    func saveProfile(input: UserProfileInput) async throws -> UserProfile {
+        let token = try await getToken()
         return try await request(method: "POST", path: "/auth/profile", body: input, token: token)
     }
 
     // MARK: - ルート検索
 
     // バリアフリールート検索
-    func searchRoute(request routeRequest: RouteRequest, token: String) async throws -> RouteResponse {
+    func searchRoute(request routeRequest: RouteRequest) async throws -> RouteResponse {
+        let token = try await getToken()
         return try await request(method: "POST", path: "/route/search", body: routeRequest, token: token)
+    }
+
+    // 地名でルート検索
+    func searchRouteByName(
+        origin: String,
+        destination: String,
+        mode: String = "walking",
+        mobilityType: String? = nil
+    ) async throws -> RouteResponse {
+        let token = try await getToken()
+        var body: [String: String] = [
+            "origin": origin,
+            "destination": destination,
+            "mode": mode
+        ]
+        if let mobilityType = mobilityType {
+            body["mobilityType"] = mobilityType
+        }
+        return try await request(method: "POST", path: "/route/search-by-name", body: body, token: token)
     }
 
     // MARK: - スポット
 
-    // 周辺スポット検索
+    // 周辺スポット検索（Google Places）
     func getNearbySpots(
         lat: Double,
         lng: Double,
         radiusMeters: Int = 500,
-        category: SpotCategory? = nil,
-        token: String
+        category: SpotCategory? = nil
     ) async throws -> [SpotSummary] {
+        let token = try await getToken()
         var queryItems = [
             URLQueryItem(name: "lat", value: String(lat)),
             URLQueryItem(name: "lng", value: String(lng)),
@@ -98,9 +130,78 @@ actor APIService {
         return response.spots
     }
 
+    // 周辺スポット検索（YOLP経由Backend）
+    func getNearbySpotsByYOLP(
+        lat: Double,
+        lng: Double,
+        radiusMeters: Int = 500
+    ) async throws -> [SpotSummary] {
+        let token = try await getToken()
+        let queryItems = [
+            URLQueryItem(name: "lat", value: String(lat)),
+            URLQueryItem(name: "lng", value: String(lng)),
+            URLQueryItem(name: "radiusMeters", value: String(radiusMeters))
+        ]
+
+        struct SpotsResponse: Codable {
+            let spots: [SpotSummary]
+        }
+        let response: SpotsResponse = try await request(
+            method: "GET",
+            path: "/spots/nearby/yolp",
+            queryItems: queryItems,
+            token: token
+        )
+        return response.spots
+    }
+
     // スポット詳細取得
-    func getSpotDetail(spotId: String, token: String) async throws -> SpotDetail {
+    func getSpotDetail(spotId: String) async throws -> SpotDetail {
+        let token = try await getToken()
         return try await request(method: "GET", path: "/spots/\(spotId)", token: token)
+    }
+
+    // MARK: - ジオコーディング
+
+    // 住所→座標
+    func geocodeAddress(_ address: String) async throws -> LatLng {
+        let token = try await getToken()
+        return try await request(
+            method: "POST",
+            path: "/geocode",
+            body: ["address": address],
+            token: token
+        )
+    }
+
+    // 座標→住所
+    func reverseGeocodeLocation(lat: Double, lng: Double) async throws -> String {
+        let token = try await getToken()
+        struct ReverseGeocodeResponse: Codable {
+            let address: String
+        }
+        let response: ReverseGeocodeResponse = try await request(
+            method: "POST",
+            path: "/geocode/reverse",
+            body: ["lat": lat, "lng": lng],
+            token: token
+        )
+        return response.address
+    }
+
+    // 場所検索候補
+    func getPlaceSuggestions(input: String) async throws -> [PlaceSuggestion] {
+        let token = try await getToken()
+        struct SuggestionsResponse: Codable {
+            let predictions: [PlaceSuggestion]
+        }
+        let response: SuggestionsResponse = try await request(
+            method: "POST",
+            path: "/geocode/autocomplete",
+            body: ["input": input],
+            token: token
+        )
+        return response.predictions
     }
 
     // MARK: - AIチャット
@@ -109,9 +210,9 @@ actor APIService {
     func sendChatMessage(
         userId: String,
         message: String,
-        conversationHistory: [[String: String]],
-        token: String
+        conversationHistory: [[String: String]]
     ) async throws -> ChatResponse {
+        let token = try await getToken()
         let chatRequest = ChatRequest(
             userId: userId,
             message: message,
@@ -124,16 +225,16 @@ actor APIService {
     func streamChatMessage(
         userId: String,
         message: String,
-        conversationHistory: [[String: String]],
-        token: String
+        conversationHistory: [[String: String]]
     ) async throws -> AsyncThrowingStream<String, Error> {
+        let token = try await getToken()
         let chatRequest = ChatRequest(
             userId: userId,
             message: message,
             conversationHistory: conversationHistory
         )
 
-        guard let url = URL(string: baseURL + "/chat") else {
+        guard let url = URL(string: baseURL + "/chat/stream") else {
             throw APIError.invalidURL
         }
 
@@ -143,6 +244,7 @@ actor APIService {
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         urlRequest.httpBody = try encoder.encode(chatRequest)
+        urlRequest.timeoutInterval = AppConfig.sseTimeout
 
         let (bytes, response) = try await URLSession.shared.bytes(for: urlRequest)
 
@@ -165,7 +267,6 @@ actor APIService {
             Task {
                 do {
                     for try await line in bytes.lines {
-                        // SSEフォーマット: "data: ..."
                         guard line.hasPrefix("data: ") else { continue }
                         let data = String(line.dropFirst(6))
                         if data == "[DONE]" {
@@ -184,9 +285,9 @@ actor APIService {
     // 会話からニーズ抽出
     func extractNeeds(
         userId: String,
-        conversationHistory: [[String: String]],
-        token: String
+        conversationHistory: [[String: String]]
     ) async throws -> ExtractNeedsResponse {
+        let token = try await getToken()
         let extractRequest = ExtractNeedsRequest(
             userId: userId,
             conversationHistory: conversationHistory
@@ -217,6 +318,7 @@ actor APIService {
         urlRequest.httpMethod = method
         urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.timeoutInterval = AppConfig.apiTimeout
 
         if let body = body {
             urlRequest.httpBody = try encoder.encode(body)

@@ -27,34 +27,28 @@ final class ProfileViewModel: ObservableObject {
     // MARK: - プロファイル完了度
 
     // プロファイルの入力完了度（0〜100%）
+    // Expo版と同じ計算式: 移動手段40% + 回避条件30% + 希望条件30%
     var completionPercentage: Int {
-        var filledCount = 0
-        let totalSections = 5
+        var percentage = 0
 
-        // 移動手段は常に選択済み（デフォルト値がある）
-        filledCount += 1
-
-        // 同行者（任意だが、選択すると完了度が上がる）
-        if !selectedCompanions.isEmpty {
-            filledCount += 1
+        // 移動手段: デフォルト(.walk)以外なら40%、.walkなら20%
+        if mobilityType != .walk {
+            percentage += 40
+        } else {
+            percentage += 20
         }
 
-        // 最大移動距離（デフォルト値から変更されていれば入力済みとみなす）
-        if maxDistanceMeters != 1000 {
-            filledCount += 1
-        }
-
-        // 回避条件
+        // 回避条件が1つ以上選択されていれば30%
         if !selectedAvoidConditions.isEmpty {
-            filledCount += 1
+            percentage += 30
         }
 
-        // 希望条件
+        // 希望条件が1つ以上選択されていれば30%
         if !selectedPreferConditions.isEmpty {
-            filledCount += 1
+            percentage += 30
         }
 
-        return (filledCount * 100) / totalSections
+        return percentage
     }
 
     // 完了度に応じたアドバイステキスト
@@ -302,30 +296,30 @@ final class ProfileViewModel: ObservableObject {
 
     private func saveToUserDefaults() {
         let defaults = UserDefaults.standard
-        defaults.set(mobilityType.rawValue, forKey: "profile_mobilityType")
-        defaults.set(selectedCompanions.map(\.rawValue), forKey: "profile_companions")
-        defaults.set(maxDistanceMeters, forKey: "profile_maxDistance")
-        defaults.set(selectedAvoidConditions.map(\.rawValue), forKey: "profile_avoidConditions")
-        defaults.set(selectedPreferConditions.map(\.rawValue), forKey: "profile_preferConditions")
+        defaults.set(mobilityType.rawValue, forKey: StorageKeys.mobilityType)
+        defaults.set(selectedCompanions.map(\.rawValue), forKey: StorageKeys.companions)
+        defaults.set(maxDistanceMeters, forKey: StorageKeys.maxDistance)
+        defaults.set(selectedAvoidConditions.map(\.rawValue), forKey: StorageKeys.avoidConditions)
+        defaults.set(selectedPreferConditions.map(\.rawValue), forKey: StorageKeys.preferConditions)
     }
 
     private func loadFromUserDefaults() {
         let defaults = UserDefaults.standard
-        if let rawMobility = defaults.string(forKey: "profile_mobilityType"),
+        if let rawMobility = defaults.string(forKey: StorageKeys.mobilityType),
            let mobility = MobilityType(rawValue: rawMobility) {
             mobilityType = mobility
         }
-        if let rawCompanions = defaults.stringArray(forKey: "profile_companions") {
+        if let rawCompanions = defaults.stringArray(forKey: StorageKeys.companions) {
             selectedCompanions = Set(rawCompanions.compactMap { Companion(rawValue: $0) })
         }
-        let distance = defaults.double(forKey: "profile_maxDistance")
+        let distance = defaults.double(forKey: StorageKeys.maxDistance)
         if distance > 0 {
             maxDistanceMeters = distance
         }
-        if let rawAvoid = defaults.stringArray(forKey: "profile_avoidConditions") {
+        if let rawAvoid = defaults.stringArray(forKey: StorageKeys.avoidConditions) {
             selectedAvoidConditions = Set(rawAvoid.compactMap { AvoidCondition(rawValue: $0) })
         }
-        if let rawPrefer = defaults.stringArray(forKey: "profile_preferConditions") {
+        if let rawPrefer = defaults.stringArray(forKey: StorageKeys.preferConditions) {
             selectedPreferConditions = Set(rawPrefer.compactMap { PreferCondition(rawValue: $0) })
         }
     }
@@ -335,7 +329,7 @@ final class ProfileViewModel: ObservableObject {
         // TODO: 実際にはチャット画面から共有されたExtractedNeedsを読み込む
         // 現在はUserDefaultsに保存されたJSON文字列から復元する実装
         let defaults = UserDefaults.standard
-        if let data = defaults.data(forKey: "extracted_needs"),
+        if let data = defaults.data(forKey: StorageKeys.chatExtractedNeeds),
            let needs = try? JSONDecoder().decode(ExtractedNeeds.self, from: data) {
             if needs.hasAnyNeeds {
                 extractedNeeds = needs

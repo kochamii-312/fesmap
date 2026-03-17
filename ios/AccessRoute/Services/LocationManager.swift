@@ -10,7 +10,8 @@ final class LocationManager: NSObject, ObservableObject {
     private let manager = CLLocationManager()
 
     // デフォルト位置（東京駅）
-    static let defaultLocation = CLLocationCoordinate2D(latitude: 35.6812, longitude: 139.7671)
+    // デフォルト位置（溝の口駅）
+    static let defaultLocation = CLLocationCoordinate2D(latitude: 35.6006, longitude: 139.6107)
 
     // 現在地またはデフォルト位置を返す
     var locationOrDefault: CLLocationCoordinate2D {
@@ -73,11 +74,12 @@ extension LocationManager: CLLocationManagerDelegate {
     }
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
         Task { @MainActor in
-            self.authorizationStatus = manager.authorizationStatus
-            switch manager.authorizationStatus {
+            self.authorizationStatus = status
+            switch status {
             case .authorizedWhenInUse, .authorizedAlways:
-                manager.startUpdatingLocation()
+                self.manager.startUpdatingLocation()
             case .denied, .restricted:
                 self.errorMessage = nil
                 self.currentLocation = nil

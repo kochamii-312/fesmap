@@ -43,7 +43,10 @@ struct SpotDetailView: View {
                 // アクセシビリティスコア
                 scoreSection(spot)
 
-                // バリアフリー情報
+                // バリアフリー設備バッジ（○/×表示）
+                facilityBadgeSection(spot)
+
+                // バリアフリー詳細情報
                 accessibilitySection(spot)
 
                 // 営業情報
@@ -174,14 +177,39 @@ struct SpotDetailView: View {
         .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 12))
         .padding(.horizontal)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(AccessibilityHelpers.scoreLabel(for: spot.accessibilityScore))、スコア\(spot.accessibilityScore)点")
+        .accessibilityLabel(
+            "\(AccessibilityHelpers.scoreLabel(for: spot.accessibilityScore))、スコア\(spot.accessibilityScore)点"
+        )
     }
 
-    // MARK: - バリアフリー情報
+    // MARK: - 設備バッジセクション（○/×表示）
+
+    private func facilityBadgeSection(_ spot: SpotDetail) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("バリアフリー設備")
+                .font(.headline)
+                .padding(.horizontal)
+
+            let facilities: [(String, Bool)] = [
+                ("エレベーター", spot.accessibility.hasElevator),
+                ("多目的トイレ", spot.accessibility.hasAccessibleRestroom),
+                ("車椅子対応", spot.accessibility.wheelchairAccessible)
+            ]
+
+            FlowLayout(spacing: 8) {
+                ForEach(facilities, id: \.0) { label, available in
+                    FacilityBadge(label: label, available: available)
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+
+    // MARK: - バリアフリー詳細情報
 
     private func accessibilitySection(_ spot: SpotDetail) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("バリアフリー情報")
+            Text("バリアフリー詳細")
                 .font(.headline)
                 .padding(.horizontal)
 
@@ -255,7 +283,15 @@ struct SpotDetailView: View {
                         BusinessInfoRow(icon: "clock", label: "営業時間", value: hours)
                     }
                     if let phone = spot.phoneNumber {
-                        BusinessInfoRow(icon: "phone", label: "電話番号", value: phone)
+                        // 電話番号リンク
+                        if let url = URL(string: "tel:\(phone)") {
+                            Link(destination: url) {
+                                BusinessInfoRow(icon: "phone", label: "電話番号", value: phone, isLink: true)
+                            }
+                            .accessibilityLabel("電話: \(phone)")
+                        } else {
+                            BusinessInfoRow(icon: "phone", label: "電話番号", value: phone)
+                        }
                     }
                     if let website = spot.website {
                         BusinessInfoRow(icon: "globe", label: "ウェブサイト", value: website)
@@ -339,6 +375,7 @@ struct BusinessInfoRow: View {
     let icon: String
     let label: String
     let value: String
+    var isLink: Bool = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -352,6 +389,7 @@ struct BusinessInfoRow: View {
                     .foregroundStyle(.secondary)
                 Text(value)
                     .font(.subheadline)
+                    .foregroundStyle(isLink ? .blue : .primary)
             }
 
             Spacer()

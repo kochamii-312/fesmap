@@ -19,6 +19,28 @@
 	<key>CFBundleVersion</key>
 	<string>1</string>
 
+	<!-- Bundle ID -->
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+
+	<!-- API Keys -->
+	<key>GOOGLE_MAPS_API_KEY</key>
+	<string>$(GOOGLE_MAPS_API_KEY)</string>
+	<key>FIREBASE_API_KEY</key>
+	<string>$(FIREBASE_API_KEY)</string>
+
+	<!-- 実行ファイル名 -->
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+
+	<!-- Bundle名 -->
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+
+	<!-- パッケージタイプ -->
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+
 	<!-- アプリ表示名 -->
 	<key>CFBundleDisplayName</key>
 	<string>AccessRoute</string>

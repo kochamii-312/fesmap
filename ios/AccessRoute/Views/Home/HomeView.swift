@@ -6,164 +6,20 @@ struct HomeView: View {
     @StateObject private var viewModel = HomeViewModel()
     @StateObject private var locationManager = LocationManager()
     @State private var navigateToRoute = false
-    @State private var cameraPosition: MapCameraPosition = .automatic
+    // 初期位置：溝の口駅
+    @State private var cameraPosition: MapCameraPosition = .region(
+        MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 35.6006, longitude: 139.6107),
+            latitudinalMeters: 1000,
+            longitudinalMeters: 1000
+        )
+    )
 
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
-                // 地図表示エリア
-                Map(position: $cameraPosition) {
-                    // 現在地マーカー
-                    if let location = locationManager.currentLocation {
-                        Annotation("現在地", coordinate: location) {
-                            ZStack {
-                                Circle()
-                                    .fill(.blue.opacity(0.2))
-                                    .frame(width: 32, height: 32)
-                                Circle()
-                                    .fill(.blue)
-                                    .frame(width: 14, height: 14)
-                                Circle()
-                                    .stroke(.white, lineWidth: 2)
-                                    .frame(width: 14, height: 14)
-                            }
-                            .accessibilityLabel("現在地")
-                        }
-                    }
-
-                    // おすすめスポットマーカー（星アイコン）
-                    ForEach(viewModel.recommendedSpots) { spot in
-                        Annotation(spot.name, coordinate: CLLocationCoordinate2D(
-                            latitude: spot.location.lat,
-                            longitude: spot.location.lng
-                        )) {
-                            ZStack {
-                                Circle()
-                                    .fill(AccessibilityHelpers.scoreColor(for: spot.accessibilityScore))
-                                    .frame(width: 30, height: 30)
-                                    .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
-                                Image(systemName: spot.category.iconName)
-                                    .font(.caption2)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(.white)
-                            }
-                        }
-                    }
-
-                    // 周辺スポットマーカー
-                    ForEach(viewModel.nearbySpots) { spot in
-                        Marker(
-                            spot.name,
-                            coordinate: CLLocationCoordinate2D(
-                                latitude: spot.location.lat,
-                                longitude: spot.location.lng
-                            )
-                        )
-                        .tint(AccessibilityHelpers.scoreColor(for: spot.accessibilityScore))
-                    }
-                }
-                .ignoresSafeArea(edges: .top)
-                .accessibilityLabel("地図")
-
-                VStack(spacing: 0) {
-                    // 検索バー
-                    SearchBarView(text: $viewModel.searchText) {
-                        viewModel.submitSearch()
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-
-                    // 現在地ボタン
-                    HStack {
-                        Spacer()
-                        Button {
-                            moveToCurrentLocation()
-                        } label: {
-                            Image(systemName: locationManager.isLocationAvailable ? "location.fill" : "location")
-                                .font(.body)
-                                .foregroundStyle(locationManager.isLocationAvailable ? .blue : .secondary)
-                                .frame(width: 44, height: 44)
-                                .background(.regularMaterial, in: Circle())
-                                .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
-                        }
-                        .ensureMinimumTapTarget()
-                        .accessibilityLabel("現在地に移動")
-                        .accessibilityHint("地図を現在地に移動します")
-                        .padding(.trailing, 16)
-                        .padding(.top, 8)
-                    }
-
-                    Spacer()
-
-                    // あなたへのおすすめ
-                    if !viewModel.recommendedNearbySpots.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "hand.thumbsup.fill")
-                                    .font(.caption)
-                                    .foregroundStyle(.blue)
-                                Text("あなたへのおすすめ")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                            }
-                            .padding(.horizontal)
-                            .accessibilityElement(children: .combine)
-                            .accessibilityLabel("現在地の近くにある、あなたへのおすすめスポット")
-
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                LazyHStack(spacing: 10) {
-                                    ForEach(viewModel.recommendedNearbySpots) { spot in
-                                        Button {
-                                            moveToSpot(spot)
-                                        } label: {
-                                            RecommendedSpotCard(spot: spot)
-                                        }
-                                        .buttonStyle(.plain)
-                                        .accessibilityLabel("\(spot.name)、\(spot.category.label)、スコア\(spot.accessibilityScore)点、おすすめ")
-                                    }
-                                }
-                                .padding(.horizontal)
-                            }
-                        }
-                        .padding(.vertical, 8)
-                        .background(.ultraThinMaterial)
-                    }
-
-                    // 周辺スポット（横スクロール）
-                    if !viewModel.nearbySpots.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("周辺のスポット")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .padding(.horizontal)
-
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                LazyHStack(spacing: 10) {
-                                    ForEach(viewModel.nearbySpots) { spot in
-                                        NavigationLink {
-                                            SpotDetailView(spotId: spot.spotId)
-                                        } label: {
-                                            HomeSpotCard(spot: spot)
-                                        }
-                                        .accessibilityLabel("\(spot.name)、\(spot.category.label)、スコア\(spot.accessibilityScore)点")
-                                    }
-                                }
-                                .padding(.horizontal)
-                            }
-                        }
-                        .padding(.vertical, 8)
-                        .background(.ultraThinMaterial)
-                    }
-
-                    // プロファイルサマリー
-                    NavigationLink {
-                        ProfileView()
-                    } label: {
-                        ProfileSummaryCard(viewModel: viewModel)
-                    }
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
-                }
+                mapView
+                overlayView
             }
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(isPresented: $navigateToRoute) {
@@ -176,31 +32,288 @@ struct HomeView: View {
                 }
             }
             .task {
-                // 位置情報の取得を開始
                 locationManager.startUpdating()
             }
             .onChange(of: locationManager.currentLocation?.latitude) { _, _ in
-                // 現在地が更新されたら周辺スポットを検索
                 let loc = locationManager.locationOrDefault
                 Task {
                     await viewModel.searchNearbySpots(lat: loc.latitude, lng: loc.longitude)
+                    await viewModel.updateCurrentAddress(lat: loc.latitude, lng: loc.longitude)
                 }
             }
             .onAppear {
-                // 初回は現在地またはデフォルト位置で検索
                 let loc = locationManager.locationOrDefault
+                // 初期位置にカメラを移動
+                cameraPosition = .region(MKCoordinateRegion(
+                    center: loc,
+                    latitudinalMeters: 1000,
+                    longitudinalMeters: 1000
+                ))
                 Task {
                     await viewModel.searchNearbySpots(lat: loc.latitude, lng: loc.longitude)
+                    await viewModel.updateCurrentAddress(lat: loc.latitude, lng: loc.longitude)
                 }
             }
             .onDisappear {
                 locationManager.stopUpdating()
             }
         }
-        .onTapGesture {
-            hideKeyboard()
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    // 地図表示
+    private var mapView: some View {
+        Map(position: $cameraPosition, interactionModes: .all) {
+            // 現在地（MapKit標準の青い丸）
+            UserAnnotation()
+            recommendedSpotAnnotations
+            nearbySpotMarkers
+        }
+        .mapStyle(.standard(pointsOfInterest: .including([.publicTransport, .restroom])))
+        .mapControls {
+            MapUserLocationButton()
+            MapCompass()
+        }
+        .ignoresSafeArea(edges: .top)
+        .accessibilityLabel("地図")
+    }
+
+    // おすすめスポットマーカー
+    @MapContentBuilder
+    private var recommendedSpotAnnotations: some MapContent {
+        ForEach(viewModel.recommendedNearbySpots) { spot in
+            Annotation(spot.name, coordinate: CLLocationCoordinate2D(
+                latitude: spot.location.lat,
+                longitude: spot.location.lng
+            )) {
+                ZStack {
+                    Circle()
+                        .fill(AccessibilityHelpers.scoreColor(for: spot.accessibilityScore))
+                        .frame(width: 30, height: 30)
+                        .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+                    Image(systemName: spot.category.iconName)
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white)
+                }
+            }
         }
     }
+
+    // 周辺スポットマーカー
+    @MapContentBuilder
+    private var nearbySpotMarkers: some MapContent {
+        ForEach(viewModel.nearbySpots) { spot in
+            Marker(
+                spot.name,
+                coordinate: CLLocationCoordinate2D(
+                    latitude: spot.location.lat,
+                    longitude: spot.location.lng
+                )
+            )
+            .tint(AccessibilityHelpers.scoreColor(for: spot.accessibilityScore))
+        }
+    }
+
+    // オーバーレイUI
+    private var overlayView: some View {
+        VStack(spacing: 0) {
+            // 検索バー
+            SearchBarView(text: $viewModel.searchText) {
+                viewModel.submitSearch()
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
+            .onChange(of: viewModel.searchText) { _, newValue in
+                viewModel.fetchSuggestions(for: newValue)
+            }
+
+            // 検索候補リスト
+            if viewModel.showSuggestions {
+                suggestionsListView
+            }
+
+            // クイックアクション
+            quickActionsView
+
+            // 現在地ボタン + 住所表示
+            HStack {
+                // 現在地住所
+                if !viewModel.currentAddress.isEmpty {
+                    Text(viewModel.currentAddress)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                        .padding(.leading, 16)
+                }
+
+                Spacer()
+
+                Button {
+                    moveToCurrentLocation()
+                } label: {
+                    Image(systemName: locationManager.isLocationAvailable ? "location.fill" : "location")
+                        .font(.body)
+                        .foregroundStyle(locationManager.isLocationAvailable ? .blue : .secondary)
+                        .frame(width: 44, height: 44)
+                        .background(.regularMaterial, in: Circle())
+                        .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
+                }
+                .ensureMinimumTapTarget()
+                .accessibilityLabel("現在地に移動")
+                .accessibilityHint("地図を現在地に移動します")
+                .padding(.trailing, 16)
+            }
+            .padding(.top, 8)
+
+            Spacer()
+
+            // 下部パネル（コンパクト）
+            bottomPanel
+        }
+    }
+
+    // 下部パネル：おすすめ + 周辺スポットをコンパクトに
+    private var bottomPanel: some View {
+        VStack(spacing: 0) {
+            // おすすめスポット（1行、小さいカード）
+            if !viewModel.recommendedNearbySpots.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        Text("おすすめ")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.blue)
+                            .padding(.leading, 4)
+
+                        ForEach(viewModel.recommendedNearbySpots) { spot in
+                            Button {
+                                moveToSpot(spot)
+                            } label: {
+                                CompactSpotChip(spot: spot)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                }
+                .padding(.vertical, 6)
+            }
+
+            Divider()
+
+            // 周辺スポット（1行、小さいカード）
+            if !viewModel.nearbySpots.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        Text("周辺")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, 4)
+
+                        ForEach(viewModel.nearbySpots) { spot in
+                            NavigationLink {
+                                SpotDetailView(spotId: spot.spotId)
+                            } label: {
+                                CompactSpotChip(spot: spot)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                }
+                .padding(.vertical, 6)
+            }
+
+            // プロファイルサマリー（コンパクト）
+            NavigationLink {
+                ProfileView()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: viewModel.profileMobilityType.iconName)
+                        .foregroundStyle(.white)
+                        .frame(width: 28, height: 28)
+                        .background(.blue, in: Circle())
+                    Text(viewModel.profileMobilityType.label)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    Text(AccessibilityHelpers.distanceText(meters: viewModel.profileMaxDistance))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+            }
+        }
+        .background(Color(.systemBackground))
+    }
+
+    // 検索候補リスト
+    private var suggestionsListView: some View {
+        VStack(spacing: 0) {
+            ForEach(viewModel.suggestions) { suggestion in
+                Button {
+                    viewModel.selectSuggestion(suggestion)
+                } label: {
+                    HStack {
+                        Image(systemName: "mappin.circle")
+                            .foregroundStyle(.secondary)
+                        Text(suggestion.description)
+                            .font(.subheadline)
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                }
+                Divider()
+                    .padding(.leading, 44)
+            }
+        }
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal)
+        .padding(.top, 4)
+    }
+
+    // クイックアクション（トイレ/EV/休憩所）
+    private var quickActionsView: some View {
+        HStack(spacing: 8) {
+            quickActionButton(icon: "toilet", label: "トイレ", keyword: "最寄りトイレ")
+            quickActionButton(icon: "arrow.up.square", label: "EV", keyword: "エレベーター")
+            quickActionButton(icon: "cup.and.saucer", label: "休憩所", keyword: "休憩所")
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+    }
+
+    private func quickActionButton(icon: String, label: String, keyword: String) -> some View {
+        Button {
+            viewModel.quickSearch(keyword)
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.caption)
+                Text(label)
+                    .font(.caption)
+                    .fontWeight(.medium)
+            }
+            .foregroundStyle(.blue)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(.regularMaterial, in: Capsule())
+        }
+        .accessibilityLabel("\(label)を検索")
+    }
+
+    // コンパクトスポットチップ（小さい表示）
 
     // 現在地にカメラを移動
     private func moveToCurrentLocation() {
@@ -232,9 +345,6 @@ struct HomeView: View {
         }
     }
 
-    private func hideKeyboard() {
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-    }
 }
 
 // 検索バー
@@ -284,132 +394,34 @@ struct SearchBarView: View {
     }
 }
 
-// ホーム画面用スポットカード
-struct HomeSpotCard: View {
+// コンパクトスポットチップ（横スクロール用の小さい表示）
+struct CompactSpotChip: View {
     let spot: SpotSummary
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Image(systemName: spot.category.iconName)
-                    .font(.caption)
-                    .foregroundStyle(AccessibilityHelpers.scoreColor(for: spot.accessibilityScore))
-
-                Text("\(spot.accessibilityScore)")
-                    .font(.caption)
-                    .fontWeight(.bold)
-                    .foregroundStyle(AccessibilityHelpers.scoreColor(for: spot.accessibilityScore))
-            }
-
-            Text(spot.name)
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-
-            Text("\(Int(spot.distanceFromRoute))m")
+        HStack(spacing: 6) {
+            // スコア（色付き）
+            Text("\(spot.accessibilityScore)")
                 .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-        .frame(width: 130)
-        .padding(10)
-        .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
-    }
-
-}
-
-// おすすめスポットカード（星バッジ付き）
-struct RecommendedSpotCard: View {
-    let spot: SpotSummary
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                // カテゴリアイコン
-                Image(systemName: spot.category.iconName)
-                    .font(.caption)
-                    .foregroundStyle(AccessibilityHelpers.scoreColor(for: spot.accessibilityScore))
-
-                Spacer()
-
-                // おすすめバッジ
-                HStack(spacing: 2) {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 8))
-                    Text("\(spot.accessibilityScore)")
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                }
-                .foregroundStyle(.orange)
-            }
-
-            Text(spot.name)
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundStyle(.primary)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
-
-            Text(spot.category.label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-        .frame(width: 140)
-        .padding(10)
-        .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(.orange.opacity(0.3), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
-    }
-}
-
-// プロファイルサマリーカード
-struct ProfileSummaryCard: View {
-    let viewModel: HomeViewModel
-
-    var body: some View {
-        HStack(spacing: 12) {
-            // 移動手段アイコン
-            Image(systemName: viewModel.profileMobilityType.iconName)
-                .font(.title2)
+                .fontWeight(.bold)
                 .foregroundStyle(.white)
-                .frame(width: 40, height: 40)
-                .background(.blue, in: Circle())
+                .frame(width: 24, height: 24)
+                .background(AccessibilityHelpers.scoreColor(for: spot.accessibilityScore), in: Circle())
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(viewModel.profileMobilityType.label)
-                    .font(.subheadline)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(spot.name)
+                    .font(.caption2)
                     .fontWeight(.medium)
-
-                HStack(spacing: 8) {
-                    // 最大距離
-                    Text(AccessibilityHelpers.distanceText(meters: viewModel.profileMaxDistance))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    // 同行者
-                    if !viewModel.profileCompanions.isEmpty {
-                        Text(viewModel.profileCompanions.map(\.label).joined(separator: "・"))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Text(spot.category.label)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
             }
-
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
-        .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("プロファイル: \(viewModel.profileMobilityType.label)、最大距離\(AccessibilityHelpers.distanceText(meters: viewModel.profileMaxDistance))")
-        .accessibilityAddTraits(.isButton)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityLabel("\(spot.name)、スコア\(spot.accessibilityScore)点")
     }
 }

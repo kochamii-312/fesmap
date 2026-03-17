@@ -1,0 +1,19 @@
+# API Keys & Secrets
+ios/Secrets.xcconfig
+backend/functions/.env
+
+# Dependencies
+node_modules/
+backend/functions/node_modules/
+
+# Xcode
+ios/AccessRoute.xcodeproj/
+ios/build/
+*.xcuserdata
+DerivedData/
+
+# macOS
+.DS_Store
+
+# Claude
+.claude/

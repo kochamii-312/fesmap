@@ -14,6 +14,11 @@ struct RouteDetailView: View {
                 // ルート概要
                 routeSummarySection
 
+                // 乗り換え情報サマリー（電車ルートの場合）
+                if hasTransitSteps {
+                    transitSummarySection
+                }
+
                 // 警告
                 if !route.warnings.isEmpty {
                     warningsSection
@@ -70,12 +75,39 @@ struct RouteDetailView: View {
         return coordinates
     }
 
+    // ステップが電車区間かどうか判定
+    private func isTransitStep(_ step: RouteStep) -> Bool {
+        let instruction = step.instruction
+        return instruction.contains("電車") || instruction.contains("乗車") || instruction.contains("下車")
+    }
+
+    // ステップごとの座標配列を取得
+    private func stepCoordinates(for step: RouteStep) -> [CLLocationCoordinate2D] {
+        if !step.polyline.isEmpty {
+            return PolylineDecoder.decode(step.polyline)
+        }
+        return [
+            CLLocationCoordinate2D(latitude: step.startLocation.lat, longitude: step.startLocation.lng),
+            CLLocationCoordinate2D(latitude: step.endLocation.lat, longitude: step.endLocation.lng)
+        ]
+    }
+
     private var mapSection: some View {
         Map {
-            // ルートのポリライン描画
-            if routeCoordinates.count >= 2 {
-                MapPolyline(coordinates: routeCoordinates)
-                    .stroke(.blue, lineWidth: 4)
+            // ステップごとに色分けしたポリライン描画
+            ForEach(route.steps) { step in
+                let coords = stepCoordinates(for: step)
+                if coords.count >= 2 {
+                    if isTransitStep(step) {
+                        // 電車区間: 緑色の太い実線
+                        MapPolyline(coordinates: coords)
+                            .stroke(.green, lineWidth: 6)
+                    } else {
+                        // 徒歩区間: 青色の破線
+                        MapPolyline(coordinates: coords)
+                            .stroke(.blue, style: StrokeStyle(lineWidth: 4, dash: [8, 6]))
+                    }
+                }
             }
 
             // 出発地マーカー
@@ -156,6 +188,76 @@ struct RouteDetailView: View {
         .padding(.horizontal)
     }
 
+    // 電車ステップがあるか
+    private var hasTransitSteps: Bool {
+        route.steps.contains { step in
+            step.instruction.contains("電車") || step.instruction.contains("乗車")
+                || step.instruction.contains("下車") || step.instruction.contains("乗り換え")
+        }
+    }
+
+    // MARK: - 乗り換えサマリーセクション
+
+    private var transitSummarySection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("乗り換え情報", systemImage: "tram.fill")
+                .font(.headline)
+                .foregroundStyle(.green)
+
+            // 各ステップを縦に表示
+            ForEach(Array(route.steps.enumerated()), id: \.element.stepId) { _, step in
+                let isTransit = step.instruction.contains("電車") || step.instruction.contains("乗車")
+                    || step.instruction.contains("下車") || step.instruction.contains("乗り換え")
+                let isWalk = step.instruction.contains("徒歩")
+
+                if isTransit || isWalk {
+                    HStack(spacing: 10) {
+                        // アイコン
+                        Image(systemName: isTransit ? "tram.fill" : "figure.walk")
+                            .font(.caption)
+                            .foregroundStyle(isTransit ? .green : .blue)
+                            .frame(width: 20)
+
+                        // 内容
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(step.instruction)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+
+                            if step.distanceMeters > 0 {
+                                let durationMin = Int(step.durationSeconds / 60)
+                                Text("\(AccessibilityHelpers.distanceText(meters: step.distanceMeters)) · 約\(max(1, durationMin))分")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Spacer()
+
+                        // 階段警告
+                        if step.hasStairs {
+                            Image(systemName: "stairs")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                    .padding(.vertical, 4)
+
+                    if !isWalk || step.stepId != route.steps.last?.stepId {
+                        Divider()
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color.green.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.green.opacity(0.2), lineWidth: 1)
+        )
+        .padding(.horizontal)
+    }
+
     // MARK: - 警告セクション
 
     private var warningsSection: some View {
@@ -228,6 +330,21 @@ struct StepRowView: View {
     let stepNumber: Int
     let isLast: Bool
 
+    // ステップが電車区間かどうか判定
+    private var isTransitStep: Bool {
+        let instruction = step.instruction
+        return instruction.contains("電車") || instruction.contains("乗車")
+            || instruction.contains("下車") || instruction.contains("乗り換え")
+    }
+
+    // ステップの種類に応じたアイコン
+    private var stepIcon: String {
+        if isTransitStep {
+            return "tram.fill"
+        }
+        return "figure.walk"
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             // ステップ番号とライン
@@ -252,9 +369,17 @@ struct StepRowView: View {
 
             // ステップ内容
             VStack(alignment: .leading, spacing: 6) {
-                Text(step.instruction)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                HStack(spacing: 6) {
+                    // 電車ステップには電車アイコンを表示
+                    if isTransitStep {
+                        Image(systemName: "tram.fill")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
+                    Text(step.instruction)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
 
                 HStack(spacing: 12) {
                     // 距離
@@ -310,6 +435,10 @@ struct StepRowView: View {
     }
 
     private var stepColor: Color {
+        // 電車ステップは緑色
+        if isTransitStep {
+            return .green
+        }
         if step.hasStairs || step.hasSlope {
             return .orange
         }
