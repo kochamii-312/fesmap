@@ -102,44 +102,11 @@ function mockNearbySpots(centerLat: number, centerLng: number): SpotSummary[] {
   ];
 }
 
-// おすすめスポットのモックデータ
-function mockRecommendedSpots(): SpotSummary[] {
-  return [
-    {
-      spotId: 'rec_1',
-      name: '東京駅 バリアフリー',
-      category: 'park',
-      location: { lat: 35.6818, lng: 139.7660 },
-      distanceMeters: 150,
-      accessibilityScore: 95,
-      wheelchairAccessible: true,
-    },
-    {
-      spotId: 'rec_wc_1',
-      name: '車椅子対応エレベーター 東京駅',
-      category: 'elevator',
-      location: { lat: 35.6814, lng: 139.7670 },
-      distanceMeters: 30,
-      accessibilityScore: 98,
-      wheelchairAccessible: true,
-    },
-    {
-      spotId: 'rec_wc_2',
-      name: '多目的トイレ KITTE',
-      category: 'restroom',
-      location: { lat: 35.6807, lng: 139.7649 },
-      distanceMeters: 100,
-      accessibilityScore: 96,
-      wheelchairAccessible: true,
-    },
-  ];
-}
 
 export default function HomeScreen() {
   const router = useRouter();
   const [searchText, setSearchText] = useState('');
   const [nearbySpots, setNearbySpots] = useState<SpotSummary[]>([]);
-  const [recommendedSpots, setRecommendedSpots] = useState<SpotSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [initialRegion, setInitialRegion] = useState<Region>(DEFAULT_REGION);
   const initialRegionSetRef = useRef(false); // initialRegion は一度だけ設定
@@ -210,9 +177,6 @@ export default function HomeScreen() {
     (async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
-
-        // おすすめスポットのモックデータをセット
-        setRecommendedSpots(mockRecommendedSpots());
 
         if (status !== 'granted') {
           setLocationReady(true);
@@ -374,19 +338,6 @@ export default function HomeScreen() {
             pinColor={scoreColor(spot.accessibilityScore)}
           />
         ))}
-        {/* おすすめスポットマーカー */}
-        {recommendedSpots.map((spot) => (
-          <Marker
-            key={spot.spotId}
-            coordinate={{
-              latitude: spot.location.lat,
-              longitude: spot.location.lng,
-            }}
-            title={spot.name}
-            description={`おすすめ: ${spot.name}`}
-            pinColor="blue"
-          />
-        ))}
       </MapView>
 
       {/* 検索バー */}
@@ -535,15 +486,15 @@ export default function HomeScreen() {
         <View style={styles.spotsContainer}>
           <ActivityIndicator size="small" color="#007AFF" />
         </View>
-      ) : recommendedSpots.length > 0 ? (
+      ) : nearbySpots.length > 0 ? (
         <View style={styles.spotsContainer}>
-          <Text style={styles.spotsTitle}>あなたへのおすすめ</Text>
+          <Text style={styles.spotsTitle}>現在地周辺のおすすめ</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.spotsScroll}
           >
-            {recommendedSpots.map((spot) => (
+            {nearbySpots.map((spot) => (
               <TouchableOpacity
                 key={spot.spotId}
                 style={styles.spotCard}

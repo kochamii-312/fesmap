@@ -113,11 +113,14 @@ export const searchNearbyYOLP = async (
 ): Promise<SpotSummary[]> => {
   const appId = getAppId();
 
+  // YOLP の dist パラメータは km 単位（範囲: 0.001〜50）
+  const distKm = Math.min(radiusMeters / 1000, 50);
+
   const params = new URLSearchParams({
     appid: appId,
     lat: String(lat),
     lon: String(lng),
-    dist: String(Math.min(Math.round(radiusMeters), 50000)),
+    dist: String(distKm),
     output: "json",
     sort: "dist",
     results: "20",

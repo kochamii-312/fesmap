@@ -313,11 +313,14 @@ extension APIService {
             throw APIError.invalidURL
         }
 
+        // YOLP の dist パラメータは km 単位（範囲: 0.001〜50）
+        let distKm = min(Double(dist) / 1000.0, 50.0)
+
         var queryItems = [
             URLQueryItem(name: "appid", value: appId),
             URLQueryItem(name: "lat", value: String(lat)),
             URLQueryItem(name: "lon", value: String(lng)),
-            URLQueryItem(name: "dist", value: String(dist)),
+            URLQueryItem(name: "dist", value: String(distKm)),
             URLQueryItem(name: "output", value: "json"),
             URLQueryItem(name: "sort", value: "dist"), // 距離順でソート
         ]
