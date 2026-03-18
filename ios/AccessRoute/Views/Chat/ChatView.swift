@@ -240,7 +240,7 @@ struct ChatView: View {
     }
 
     private var canSend: Bool {
-        !viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !viewModel.isTyping
+        !viewModel.inputText.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty && !viewModel.isTyping
     }
 
     private func sendIfPossible() {
