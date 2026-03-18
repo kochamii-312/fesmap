@@ -6,10 +6,6 @@ options:
   xcodeVersion: "16.0"
   generateEmptyDirectories: false
 
-configFiles:
-  Debug: Secrets.xcconfig
-  Release: Secrets.xcconfig
-
 settings:
   base:
     SWIFT_VERSION: "6.0"
