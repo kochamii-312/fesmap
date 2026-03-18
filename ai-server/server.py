@@ -26,10 +26,16 @@ from parser import (
     parse_json_response,
     validate_extracted_needs,
 )
+from chat_handler import (
+    ChatRequest as YolpChatRequest,
+    ChatResponse as YolpChatResponse,
+    process_chat_message,
+)
 
 logger = logging.getLogger(__name__)
 
 # --- Pydanticモデル定義 ---
+
 
 
 class ChatMessage(BaseModel):
@@ -147,6 +153,20 @@ async def health() -> HealthResponse:
         model=config.model_name,
         uptime_seconds=round(time.time() - start_time, 1),
     )
+
+
+@app.post("/v2/chat", response_model=YolpChatResponse)
+async def chat_v2(request: YolpChatRequest) -> YolpChatResponse:
+    """
+    YOLP APIと連携する新しいチャットエンドポイント。
+    曖昧なリクエストからスポットを推薦する。
+    """
+    try:
+        response = await process_chat_message(request)
+        return response
+    except Exception as e:
+        logger.error("YOLPチャット応答生成に失敗: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 def _build_chat_messages(request: AIChatRequest) -> list[dict[str, str]]:

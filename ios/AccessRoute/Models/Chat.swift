@@ -98,3 +98,36 @@ struct ExtractNeedsResponse: Codable {
     let confidence: Double
     let missingFields: [String]
 }
+
+// MARK: - YOLP Spot Suggestion Chat Models (v2)
+
+/// `/v2/chat` エンドポイントへのリクエスト
+struct YolpChatRequest: Codable {
+    let message: String
+    let latitude: Double?
+    let longitude: Double?
+}
+
+/// `/v2/chat` エンドポイントからのレスポンス
+struct YolpChatResponse: Codable {
+    let assistantMessage: String
+    let recommendedConditions: [String]
+    let spots: [RecommendedSpot]
+    let followupQuestion: String?
+    let action: ShowOnMapAction?
+}
+
+/// AIによって推薦されたスポット情報
+struct RecommendedSpot: Codable, Identifiable {
+    let id: String
+    let name: String
+    let reason: String
+    let latitude: Double
+    let longitude: Double
+}
+
+/// 地図表示をトリガーするアクション
+struct ShowOnMapAction: Codable {
+    let type: String
+    let spotIds: [String]
+}

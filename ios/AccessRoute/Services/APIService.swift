@@ -204,6 +204,30 @@ actor APIService {
         return response.predictions
     }
 
+    // MARK: - AIチャッﾄ (v2: スポット推薦)
+
+    // YOLP連携によるスポット推薦
+    func getSpotSuggestions(
+        message: String,
+        latitude: Double?,
+        longitude: Double?
+    ) async throws -> YolpChatResponse {
+        // v2エンドポイントはバックエンドのFirebase Authではなく、AIサーバーの認証に依存する可能性がある
+        // ここでは一旦トークンなしで呼び出すか、あるいはAIサーバー用の別の認証キーを使う
+        // 今回はデモとして、既存のトークンを利用する
+        let token = try await getToken()
+        let yolpRequest = YolpChatRequest(
+            message: message,
+            latitude: latitude,
+            longitude: longitude
+        )
+        // 注意: APIServiceのbaseURLはbackendを指している。
+        // ai-serverを呼び出すには、URLを切り替えるか、backendにプロキシさせる必要がある。
+        // ここではbackendに /v2/chat がプロキシされていると仮定する。
+        // もしai-serverが別ドメインなら、AppConfigに `aiServerBaseURL` を追加するのが望ましい。
+        return try await request(method: "POST", path: "/v2/chat", body: yolpRequest, token: token)
+    }
+
     // MARK: - AIチャット
 
     // チャットメッセージ送信

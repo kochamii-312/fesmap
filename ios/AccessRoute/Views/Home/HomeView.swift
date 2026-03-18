@@ -4,6 +4,7 @@ import MapKit
 // ホーム画面
 struct HomeView: View {
     @StateObject private var viewModel = HomeViewModel()
+    @EnvironmentObject private var appState: AppState // AppStateを注入
     @StateObject private var locationManager = LocationManager()
     @State private var navigateToRoute = false
     @State private var hasMovedToUserLocation = false
@@ -71,6 +72,18 @@ struct HomeView: View {
             .onDisappear {
                 locationManager.stopUpdating()
             }
+            // AIチャットからのスポット表示リクエストを監視
+            .onReceive(appState.$spotsToShowOnMap) { spots in
+                guard !spots.isEmpty else { return }
+                viewModel.displaySpotsFromChat(spots)
+                
+                // スポット群を囲む領域にカメラを移動
+                let coordinates = spots.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+                let region = MKCoordinateRegion.from(coordinates: coordinates)
+                withAnimation {
+                    cameraPosition = .region(region)
+                }
+            }
         }
         .scrollDismissesKeyboard(.interactively)
     }
@@ -80,6 +93,10 @@ struct HomeView: View {
         Map(position: $cameraPosition, interactionModes: .all) {
             // 現在地（MapKit標準の青い丸）
             UserAnnotation()
+            
+            // AIチャットからの推薦スポット
+            chatSpotAnnotations
+
             recommendedSpotAnnotations
             nearbySpotMarkers
         }
@@ -92,6 +109,27 @@ struct HomeView: View {
         .accessibilityLabel("地図")
     }
 
+    // AIチャットからの推薦スポットマーカー
+    @MapContentBuilder
+    private var chatSpotAnnotations: some MapContent {
+        ForEach(viewModel.chatRecommendedSpots) { spot in
+            Annotation(spot.name, coordinate: CLLocationCoordinate2D(
+                latitude: spot.location.lat,
+                longitude: spot.location.lng
+            )) {
+                ZStack {
+                    Circle()
+                        .fill(Color.purple) // チャットからのスポットは紫色
+                        .frame(width: 32, height: 32)
+                        .shadow(color: .black.opacity(0.3), radius: 3, y: 2)
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.white)
+                }
+            }
+        }
+    }
+    
     // おすすめスポットマーカー（カテゴリ別色分け）
     @MapContentBuilder
     private var recommendedSpotAnnotations: some MapContent {
@@ -444,5 +482,45 @@ struct CompactSpotChip: View {
         .padding(.vertical, 6)
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
         .accessibilityLabel("\(spot.name)、スコア\(spot.accessibilityScore)点")
+    }
+}
+
+// MARK: - MapKit Helper Extension
+
+extension MKCoordinateRegion {
+    /// 複数の座標を囲む最適な領域を計算する
+    static func from(coordinates: [CLLocationCoordinate2D]) -> MKCoordinateRegion {
+        guard !coordinates.isEmpty else {
+            // デフォルト領域（東京駅周辺）
+            return MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: 35.6812, longitude: 139.7671),
+                latitudinalMeters: 1000,
+                longitudinalMeters: 1000
+            )
+        }
+
+        var minLat = coordinates[0].latitude
+        var maxLat = coordinates[0].latitude
+        var minLon = coordinates[0].longitude
+        var maxLon = coordinates[0].longitude
+
+        for coordinate in coordinates {
+            minLat = min(minLat, coordinate.latitude)
+            maxLat = max(maxLat, coordinate.latitude)
+            minLon = min(minLon, coordinate.longitude)
+            maxLon = max(maxLon, coordinate.longitude)
+        }
+
+        let center = CLLocationCoordinate2D(
+            latitude: (minLat + maxLat) / 2,
+            longitude: (minLon + maxLon) / 2
+        )
+
+        let span = MKCoordinateSpan(
+            latitudeDelta: (maxLat - minLat) * 1.4, // 少し余白を持たせる
+            longitudeDelta: (maxLon - minLon) * 1.4
+        )
+
+        return MKCoordinateRegion(center: center, span: span)
     }
 }

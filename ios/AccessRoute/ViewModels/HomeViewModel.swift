@@ -7,6 +7,7 @@ final class HomeViewModel: ObservableObject {
     @Published var searchText = ""
     @Published var isSearching = false
     @Published var nearbySpots: [SpotSummary] = []
+    @Published var chatRecommendedSpots: [SpotSummary] = [] // AIチャットからの推薦スポット
     @Published var errorMessage: String?
     @Published var shouldNavigateToRoute = false
     @Published var suggestions: [PlaceSuggestion] = []
@@ -126,6 +127,28 @@ final class HomeViewModel: ObservableObject {
         guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         showSuggestions = false
         shouldNavigateToRoute = true
+    }
+
+    // MARK: - AIチャット連携
+
+    /// AIチャットから受け取った推薦スポットを表示する
+    func displaySpotsFromChat(_ spots: [RecommendedSpot]) {
+        // 既存のスポットをクリア
+        self.chatRecommendedSpots = []
+        
+        // ChatのRecommendedSpotを地図表示用のSpotSummaryに変換
+        let summaries = spots.map { spot -> SpotSummary in
+            return SpotSummary(
+                spotId: spot.id,
+                name: spot.name,
+                category: .other, // チャット経由のスポットは汎用カテゴリ
+                location: LatLng(lat: spot.latitude, lng: spot.longitude),
+                accessibilityScore: 75, // 固定スコア（または非表示）
+                distanceFromRoute: 0 // 距離は不明
+            )
+        }
+        
+        self.chatRecommendedSpots = summaries
     }
 
     // MARK: - モックデータ
