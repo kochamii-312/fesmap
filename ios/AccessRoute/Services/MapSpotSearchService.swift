@@ -9,7 +9,19 @@ enum MapSpotSearchService {
         near coordinate: CLLocationCoordinate2D,
         radius: Double = 500
     ) async -> [SpotSummary] {
-        let needs = UserNeedsService.loadUnifiedNeeds()
+        // プロフィール設定を基準に、マップフィルターで絞り込む
+        var needs = UserNeedsService.loadUnifiedNeeds()
+        if let mapFilters = UserDefaults.standard.stringArray(forKey: "mapActiveFilters"),
+           !mapFilters.isEmpty {
+            // マップフィルターでオンのもののみ使用
+            let profileSet = Set(needs.preferConditions.map(\.rawValue))
+            let activeSet = Set(mapFilters).intersection(profileSet)
+            if !activeSet.isEmpty {
+                needs.preferConditions = activeSet.compactMap { PreferCondition(rawValue: $0) }
+            }
+            // activeSet が空の場合はプロフィール設定をそのまま使用
+        }
+
         var allSpots: [SpotSummary] = []
 
         // 好みに応じた検索キーワードを決定
@@ -127,6 +139,38 @@ enum MapSpotSearchService {
                 queries.append(("休憩所", .rest_area))
             case .covered:
                 queries.append(("屋根付き", .rest_area))
+            case .nursing_room:
+                queries.append(("授乳室", .nursing_room))
+            case .parking_spot:
+                queries.append(("駐車場", .parking))
+            case .convenience_store:
+                queries.append(("コンビニ", .convenience_store))
+            case .ramen:
+                queries.append(("ラーメン", .ramen))
+            case .cinema:
+                queries.append(("映画館", .cinema))
+            case .bookstore:
+                queries.append(("本屋", .bookstore))
+                queries.append(("書店", .bookstore))
+            case .onsen:
+                queries.append(("温泉", .onsen))
+                queries.append(("銭湯", .onsen))
+            case .game_center:
+                queries.append(("ゲームセンター", .game_center))
+            case .hospital:
+                queries.append(("病院", .hospital))
+                queries.append(("クリニック", .hospital))
+            case .atm:
+                queries.append(("ATM", .atm))
+            case .post_office:
+                queries.append(("郵便局", .post_office))
+            case .museum:
+                queries.append(("美術館", .museum))
+                queries.append(("博物館", .museum))
+            case .park:
+                queries.append(("公園", .park))
+            case .hotel:
+                queries.append(("ホテル", .hotel))
             }
         }
 

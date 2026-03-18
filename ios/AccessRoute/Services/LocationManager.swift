@@ -10,8 +10,8 @@ final class LocationManager: NSObject, ObservableObject {
     private let manager = CLLocationManager()
 
     // デフォルト位置（東京駅）
-    // デフォルト位置（溝の口駅）
-    static let defaultLocation = CLLocationCoordinate2D(latitude: 35.6006, longitude: 139.6107)
+    // デフォルト位置（東京ガーデンテラス紀尾井町）
+    static let defaultLocation = CLLocationCoordinate2D(latitude: 35.6799, longitude: 139.7374)
 
     // 現在地またはデフォルト位置を返す
     var locationOrDefault: CLLocationCoordinate2D {

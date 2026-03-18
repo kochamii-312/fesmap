@@ -96,8 +96,6 @@ struct RouteView: View {
         .mapStyle(.standard(pointsOfInterest: .excludingAll))
         .mapControls {
             MapUserLocationButton()
-            MapCompass()
-            MapScaleView()
         }
         .ignoresSafeArea(edges: .top)
     }

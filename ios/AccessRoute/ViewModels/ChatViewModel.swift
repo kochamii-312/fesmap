@@ -98,6 +98,20 @@ final class ChatViewModel: ObservableObject {
                 return true
             }
 
+            // 検索地点から近い順にソートして最大7件
+            allSpots.sort { a, b in
+                let distA = TransitRouteService.haversineDistance(
+                    from: searchLocation,
+                    to: CLLocationCoordinate2D(latitude: a.latitude, longitude: a.longitude)
+                )
+                let distB = TransitRouteService.haversineDistance(
+                    from: searchLocation,
+                    to: CLLocationCoordinate2D(latitude: b.latitude, longitude: b.longitude)
+                )
+                return distA < distB
+            }
+            allSpots = Array(allSpots.prefix(7))
+
             guard !Task.isCancelled else { return }
 
             // メインスレッドでUI更新
@@ -223,29 +237,72 @@ final class ChatViewModel: ObservableObject {
 
     // メッセージから場所名を抽出
     nonisolated private func extractPlaceName(from message: String) -> String? {
-        // 「〇〇の」「〇〇で」「〇〇周辺」「〇〇付近」「〇〇近く」パターン
-        let patterns = ["の", "で", "周辺", "付近", "近く", "にある", "にいる", "から"]
-        for pattern in patterns {
-            if let range = message.range(of: pattern) {
-                let before = String(message[message.startIndex..<range.lowerBound])
-                    .trimmingCharacters(in: .whitespaces)
-                if !before.isEmpty && before.count >= 2 {
-                    return before
+        // 非地名ワードのブロックリスト
+        let nonPlaceWords = [
+            "静か", "ゆっくり", "のんびり", "車椅子", "車いす", "バリアフリー",
+            "ベビーカー", "落ち着", "広く", "狭い", "おしゃれ", "きれい",
+            "安い", "高い", "美味し", "楽し", "近く", "遠く",
+            "移動", "食べ", "飲み", "休み", "遊び", "買い物",
+            "カフェ", "レストラン", "トイレ", "エレベーター", "公園",
+            "図書館", "カラオケ", "体育館", "コンビニ", "病院",
+        ]
+
+        // 1. 既知の地名が含まれているかチェック（最優先）
+        let knownPlaces = [
+            "東京駅", "新宿駅", "渋谷駅", "池袋駅", "品川駅", "上野駅",
+            "秋葉原駅", "銀座駅", "六本木駅", "原宿駅", "表参道駅",
+            "恵比寿駅", "目黒駅", "浜松町駅", "横浜駅", "川崎駅",
+            "溝の口駅", "武蔵小杉駅", "二子玉川駅", "自由が丘駅",
+            "東京", "新宿", "渋谷", "池袋", "品川", "上野", "秋葉原",
+            "銀座", "六本木", "原宿", "表参道", "恵比寿", "目黒",
+            "浜松町", "横浜", "川崎", "溝の口", "武蔵小杉", "二子玉川",
+            "自由が丘", "大阪", "梅田", "難波", "京都", "名古屋",
+            "福岡", "札幌", "浅草", "お台場", "スカイツリー", "東京タワー",
+            "紀尾井町", "赤坂", "永田町", "大手町", "丸の内", "日本橋",
+            "神保町", "飯田橋", "四ツ谷", "市ヶ谷", "高田馬場",
+            "中野", "荻窪", "吉祥寺", "三鷹", "立川",
+        ]
+
+        // 長い名前から優先的にマッチ（「東京駅」が「東京」より先にマッチ）
+        let sortedPlaces = knownPlaces.sorted { $0.count > $1.count }
+        for place in sortedPlaces {
+            if message.contains(place) {
+                return place
+            }
+        }
+
+        // 2. 「〇〇駅」「〇〇区」「〇〇市」「〇〇町」パターン
+        let locationSuffixes = ["駅", "区", "市", "町", "村", "県"]
+        for suffix in locationSuffixes {
+            if let range = message.range(of: suffix) {
+                // suffix の前の文字列を取得（最大10文字）
+                let startIdx = message.index(range.lowerBound, offsetBy: -min(10, message.distance(from: message.startIndex, to: range.lowerBound)))
+                let before = String(message[startIdx..<range.lowerBound])
+                // 最後の助詞以降を地名として抽出
+                let components = before.components(separatedBy: CharacterSet(charactersIn: "のでをにはがとも"))
+                if let lastPart = components.last, !lastPart.isEmpty, lastPart.count >= 2 {
+                    let placeName = lastPart + suffix
+                    // ブロックリストチェック
+                    if !nonPlaceWords.contains(where: { placeName.contains($0) }) {
+                        return placeName
+                    }
                 }
             }
         }
 
-        // 既知の地名が含まれているかチェック
-        let knownPlaces = [
-            "東京", "新宿", "渋谷", "池袋", "品川", "上野", "秋葉原", "銀座",
-            "六本木", "原宿", "表参道", "恵比寿", "目黒", "大崎", "浜松町",
-            "横浜", "川崎", "溝の口", "武蔵小杉", "二子玉川", "自由が丘",
-            "大阪", "梅田", "難波", "京都", "名古屋", "福岡", "札幌",
-            "浅草", "お台場", "スカイツリー", "東京タワー",
-        ]
-        for place in knownPlaces {
-            if message.contains(place) {
-                return place
+        // 3. 「〇〇周辺」「〇〇付近」パターン（これは地名の可能性が高い）
+        let locationPatterns = ["周辺", "付近", "あたり", "近辺"]
+        for pattern in locationPatterns {
+            if let range = message.range(of: pattern) {
+                let before = String(message[message.startIndex..<range.lowerBound])
+                    .trimmingCharacters(in: .whitespaces)
+                // 助詞で分割して最後の部分を取得
+                let parts = before.components(separatedBy: CharacterSet(charactersIn: "のでをにはがとも"))
+                if let lastPart = parts.last, lastPart.count >= 2 {
+                    if !nonPlaceWords.contains(where: { lastPart.contains($0) }) {
+                        return lastPart
+                    }
+                }
             }
         }
 
@@ -345,12 +402,89 @@ final class ChatViewModel: ObservableObject {
             queries.append(SearchQuery(keyword: "エレベーター", reason: "エレベーター"))
         }
 
-        // 何も一致しなかった場合はメッセージ全体で検索
+        // 自然・景色関連（地名内の「ガーデン」等を除外するため、前後の文脈で判定）
+        let natureKeywords = ["桜", "花見", "紅葉", "自然", "緑"]
+        if natureKeywords.contains(where: { message.contains($0) }) {
+            queries.append(SearchQuery(keyword: "公園 桜", reason: "桜・自然スポット"))
+            queries.append(SearchQuery(keyword: "庭園", reason: "庭園"))
+        }
+        // 「庭園」は単独で出てきた場合のみ（「ガーデンテラス」等の地名は除外）
+        if message.contains("庭園") && !message.contains("ガーデン") {
+            queries.append(SearchQuery(keyword: "庭園", reason: "庭園"))
+        }
+
+        // 静か・落ち着く関連（具体的なカテゴリが未指定の場合のみ）
+        let quietKeywords = ["静か", "落ち着", "ゆっくり", "のんびり", "穏やか", "癒し"]
+        if quietKeywords.contains(where: { message.contains($0) }) && queries.isEmpty {
+            queries.append(SearchQuery(keyword: "公園", reason: "静かな場所"))
+            queries.append(SearchQuery(keyword: "図書館", reason: "静かな施設"))
+            queries.append(SearchQuery(keyword: "カフェ 静か", reason: "落ち着けるカフェ"))
+        }
+
+        // 観光・遊び関連（具体的なカテゴリが未指定の場合のみ）
+        let tourKeywords = ["観光", "観る", "遊ぶ", "遊び", "デート", "散策"]
+        if tourKeywords.contains(where: { message.contains($0) }) && queries.isEmpty {
+            queries.append(SearchQuery(keyword: "観光", reason: "観光スポット"))
+            queries.append(SearchQuery(keyword: "公園", reason: "散策スポット"))
+        }
+
+        // 買い物関連
+        let shopKeywords = ["買い物", "ショッピング", "お土産", "雑貨", "服", "本屋"]
+        if shopKeywords.contains(where: { message.contains($0) }) {
+            queries.append(SearchQuery(keyword: "ショッピング", reason: "買い物スポット"))
+        }
+
+        // コンビニ
+        if message.contains("コンビニ") {
+            queries.append(SearchQuery(keyword: "コンビニ", reason: "コンビニ"))
+        }
+
+        // 薬局・ドラッグストア
+        let pharmacyKeywords = ["薬局", "ドラッグストア", "薬"]
+        if pharmacyKeywords.contains(where: { message.contains($0) }) {
+            queries.append(SearchQuery(keyword: "ドラッグストア", reason: "薬局"))
+        }
+
+        // 病院・クリニック
+        let hospitalKeywords = ["病院", "クリニック", "医者", "医院"]
+        if hospitalKeywords.contains(where: { message.contains($0) }) {
+            queries.append(SearchQuery(keyword: "病院", reason: "医療施設"))
+        }
+
+        // 何も一致しなかった場合は自然言語からキーワードを抽出して検索
+        if queries.isEmpty {
+            // メッセージからキーワードを分解して検索
+            let extracted = extractNaturalKeywords(from: message)
+            for keyword in extracted {
+                queries.append(SearchQuery(keyword: keyword, reason: "「\(keyword)」の検索結果"))
+            }
+        }
+
+        // それでも空なら全文で検索
         if queries.isEmpty {
             queries.append(SearchQuery(keyword: message, reason: "検索結果"))
         }
 
         return queries
+    }
+
+    // 自然言語からキーワードを抽出
+    private func extractNaturalKeywords(from message: String) -> [String] {
+        // 不要な助詞・接続詞を除去してキーワードを抽出
+        let stopWords = ["が", "を", "に", "は", "の", "で", "と", "も", "な", "い",
+                         "たい", "ほしい", "ある", "いる", "できる", "ない", "ます",
+                         "です", "する", "した", "して", "れる", "場所", "ところ",
+                         "見れる", "行ける", "探して", "教えて", "知りたい", "おすすめ"]
+
+        var cleaned = message
+        for word in stopWords {
+            cleaned = cleaned.replacingOccurrences(of: word, with: " ")
+        }
+
+        let keywords = cleaned.components(separatedBy: .whitespaces)
+            .filter { $0.count >= 2 }
+
+        return Array(keywords.prefix(3))
     }
 
     // MARK: - MKLocalSearch

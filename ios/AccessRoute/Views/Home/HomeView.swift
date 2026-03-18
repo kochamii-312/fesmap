@@ -8,6 +8,7 @@ struct HomeView: View {
     @StateObject private var locationManager = LocationManager()
     @State private var navigateToRoute = false
     @State private var hasMovedToUserLocation = false
+    @State private var showSpotFilter = false
     // 初期位置：ユーザーの現在地に自動追従
     @State private var cameraPosition: MapCameraPosition = .userLocation(fallback: .region(
         MKCoordinateRegion(
@@ -49,6 +50,13 @@ struct HomeView: View {
                 }
             }
             .task {
+                // mapActiveFilters が未設定ならプロフィール設定で初期化
+                if UserDefaults.standard.stringArray(forKey: "mapActiveFilters") == nil {
+                    let profileConditions = UserDefaults.standard.stringArray(
+                        forKey: StorageKeys.preferConditions
+                    ) ?? []
+                    UserDefaults.standard.set(profileConditions, forKey: "mapActiveFilters")
+                }
                 // 位置情報が利用可能になるまで待機してからスポット検索を1回実行
                 try? await Task.sleep(for: .seconds(2))
                 let loc = locationManager.locationOrDefault
@@ -89,7 +97,6 @@ struct HomeView: View {
         .mapStyle(.standard(pointsOfInterest: .excludingAll))
         .mapControls {
             MapUserLocationButton()
-            MapCompass()
         }
         .ignoresSafeArea(edges: .top)
         .accessibilityLabel("地図")
@@ -178,9 +185,6 @@ struct HomeView: View {
                 suggestionsListView
             }
 
-            // クイックアクション
-            quickActionsView
-
             // 現在地ボタン + 住所表示
             HStack {
                 // 現在地住所
@@ -216,8 +220,26 @@ struct HomeView: View {
 
             Spacer()
 
-            // 下部パネル（コンパクト）
-            bottomPanel
+            // 右下フロートボタン（おすすめリスト切替）
+            HStack {
+                Spacer()
+                Button {
+                    showSpotFilter.toggle()
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.title3)
+                        .foregroundStyle(.white)
+                        .frame(width: 50, height: 50)
+                        .background(.blue, in: Circle())
+                        .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+                }
+                .padding(.trailing, 16)
+                .padding(.bottom, 16)
+            }
+        }
+        .sheet(isPresented: $showSpotFilter) {
+            SpotFilterSheet(viewModel: viewModel, locationManager: locationManager)
+                .presentationDetents([.medium])
         }
     }
 
@@ -421,18 +443,6 @@ struct SearchBarView: View {
                 .accessibilityLabel("検索テキストをクリア")
             }
 
-            // 検索ボタン
-            if !text.isEmpty {
-                Button {
-                    onSubmit()
-                } label: {
-                    Image(systemName: "arrow.right.circle.fill")
-                        .font(.title3)
-                        .foregroundStyle(.blue)
-                }
-                .ensureMinimumTapTarget()
-                .accessibilityLabel("ルート検索を実行")
-            }
         }
         .padding(12)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
@@ -468,6 +478,122 @@ struct CompactSpotChip: View {
         .padding(.vertical, 6)
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
         .accessibilityLabel("\(spot.name)、スコア\(spot.accessibilityScore)点")
+    }
+}
+
+// MARK: - おすすめフィルターシート
+
+struct SpotFilterSheet: View {
+    @ObservedObject var viewModel: HomeViewModel
+    let locationManager: LocationManager
+    @Environment(\.dismiss) private var dismiss
+
+    // マップ表示のオン/オフ（プロフィール設定とは別管理）
+    private static let mapFilterKey = "mapActiveFilters"
+
+    @State private var activeFilters: Set<String> = []
+
+    // プロフィールで選択されたおすすめリスト項目のみ表示
+    private var profilePreferConditions: [PreferCondition] {
+        let saved = UserDefaults.standard.stringArray(forKey: StorageKeys.preferConditions) ?? []
+        return saved.compactMap { PreferCondition(rawValue: $0) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                if profilePreferConditions.isEmpty {
+                    VStack(spacing: 12) {
+                        Spacer()
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 40))
+                            .foregroundStyle(.secondary)
+                        Text("設定タブの「おすすめリスト」から\n表示したい項目を選んでください")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                        Spacer()
+                    }
+                } else {
+                    Text("タップで表示/非表示を切り替え")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal)
+
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 90))], spacing: 12) {
+                        ForEach(profilePreferConditions) { condition in
+                            let isOn = activeFilters.contains(condition.rawValue)
+
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    if isOn {
+                                        activeFilters.remove(condition.rawValue)
+                                    } else {
+                                        activeFilters.insert(condition.rawValue)
+                                    }
+                                }
+                                // 即座に保存して再検索
+                                saveAndRefresh()
+                            } label: {
+                                VStack(spacing: 6) {
+                                    Text(condition.emoji)
+                                        .font(.title2)
+                                    Text(condition.label)
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundStyle(isOn ? .black : .secondary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(
+                                    isOn ? Color.blue.opacity(0.1) : Color(.systemGray6),
+                                    in: RoundedRectangle(cornerRadius: 14)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .stroke(isOn ? Color.blue : Color.clear, lineWidth: 2)
+                                )
+                                .opacity(isOn ? 1.0 : 0.6)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+
+                Spacer()
+            }
+            .padding(.top)
+            .navigationTitle("おすすめリスト")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("閉じる") {
+                        dismiss()
+                    }
+                }
+            }
+            .onAppear {
+                // マップフィルターを読み込み、プロフィールにないものは除外
+                let profileSet = Set(profilePreferConditions.map(\.rawValue))
+                if let saved = UserDefaults.standard.stringArray(forKey: Self.mapFilterKey) {
+                    // プロフィールに存在するもののみ残す
+                    activeFilters = Set(saved).intersection(profileSet)
+                } else {
+                    // 初回はプロフィール設定のものを全てオン
+                    activeFilters = profileSet
+                }
+                UserDefaults.standard.set(Array(activeFilters), forKey: Self.mapFilterKey)
+            }
+        }
+    }
+
+    private func saveAndRefresh() {
+        // マップ表示フィルターのみ保存（プロフィール設定は変えない）
+        UserDefaults.standard.set(Array(activeFilters), forKey: Self.mapFilterKey)
+        let loc = locationManager.locationOrDefault
+        Task {
+            await viewModel.searchNearbySpots(lat: loc.latitude, lng: loc.longitude)
+        }
     }
 }
 

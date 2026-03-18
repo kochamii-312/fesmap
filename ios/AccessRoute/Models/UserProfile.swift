@@ -160,6 +160,20 @@ enum PreferCondition: String, Codable, CaseIterable, Identifiable {
     case karaoke
     case gym
     case elevator
+    case nursing_room // swiftlint:disable:this identifier_name
+    case parking_spot // swiftlint:disable:this identifier_name
+    case convenience_store // swiftlint:disable:this identifier_name
+    case ramen
+    case cinema
+    case bookstore
+    case onsen
+    case game_center // swiftlint:disable:this identifier_name
+    case hospital
+    case atm
+    case post_office // swiftlint:disable:this identifier_name
+    case museum
+    case park
+    case hotel
 
     var id: String { rawValue }
 
@@ -175,6 +189,20 @@ enum PreferCondition: String, Codable, CaseIterable, Identifiable {
         case .karaoke: return "カラオケ"
         case .gym: return "体育館"
         case .elevator: return "エレベーター"
+        case .nursing_room: return "授乳室"
+        case .parking_spot: return "駐車場"
+        case .convenience_store: return "コンビニ"
+        case .ramen: return "ラーメン"
+        case .cinema: return "映画館"
+        case .bookstore: return "本屋"
+        case .onsen: return "温泉・銭湯"
+        case .game_center: return "ゲームセンター"
+        case .hospital: return "病院"
+        case .atm: return "ATM"
+        case .post_office: return "郵便局"
+        case .museum: return "美術館"
+        case .park: return "公園"
+        case .hotel: return "ホテル"
         }
     }
 
@@ -190,6 +218,20 @@ enum PreferCondition: String, Codable, CaseIterable, Identifiable {
         case .karaoke: return "music.mic"
         case .gym: return "figure.run"
         case .elevator: return "arrow.up.arrow.down"
+        case .nursing_room: return "heart"
+        case .parking_spot: return "p.square"
+        case .convenience_store: return "storefront"
+        case .ramen: return "takeoutbag.and.cup.and.straw"
+        case .cinema: return "film"
+        case .bookstore: return "text.book.closed"
+        case .onsen: return "drop.fill"
+        case .game_center: return "gamecontroller"
+        case .hospital: return "cross.case"
+        case .atm: return "banknote"
+        case .post_office: return "envelope"
+        case .museum: return "building.columns"
+        case .park: return "leaf"
+        case .hotel: return "bed.double"
         }
     }
 
@@ -206,6 +248,20 @@ enum PreferCondition: String, Codable, CaseIterable, Identifiable {
         case .karaoke: return "🎤"
         case .gym: return "🏋️"
         case .elevator: return "🛗"
+        case .nursing_room: return "🍼"
+        case .parking_spot: return "🅿️"
+        case .convenience_store: return "🏪"
+        case .ramen: return "🍜"
+        case .cinema: return "🎬"
+        case .bookstore: return "📖"
+        case .onsen: return "♨️"
+        case .game_center: return "🕹️"
+        case .hospital: return "🏥"
+        case .atm: return "🏧"
+        case .post_office: return "📮"
+        case .museum: return "🖼️"
+        case .park: return "🌳"
+        case .hotel: return "🏨"
         }
     }
 
@@ -222,6 +278,20 @@ enum PreferCondition: String, Codable, CaseIterable, Identifiable {
         case .karaoke: return "周辺のカラオケを表示"
         case .gym: return "周辺の体育館・ジムを表示"
         case .elevator: return "周辺のエレベーターを表示"
+        case .nursing_room: return "周辺の授乳室を表示"
+        case .parking_spot: return "周辺の駐車場を表示"
+        case .convenience_store: return "周辺のコンビニを表示"
+        case .ramen: return "周辺のラーメンを表示"
+        case .cinema: return "周辺の映画館を表示"
+        case .bookstore: return "周辺の本屋を表示"
+        case .onsen: return "周辺の温泉・銭湯を表示"
+        case .game_center: return "周辺のゲームセンターを表示"
+        case .hospital: return "周辺の病院を表示"
+        case .atm: return "周辺のATMを表示"
+        case .post_office: return "周辺の郵便局を表示"
+        case .museum: return "周辺の美術館を表示"
+        case .park: return "周辺の公園を表示"
+        case .hotel: return "周辺のホテルを表示"
         }
     }
 }

@@ -17,6 +17,17 @@ enum SpotCategory: String, Codable, CaseIterable, Identifiable {
     case gym
     case elevator
     case parking
+    case convenience_store // swiftlint:disable:this identifier_name
+    case ramen
+    case cinema
+    case bookstore
+    case onsen
+    case game_center // swiftlint:disable:this identifier_name
+    case hospital
+    case atm
+    case post_office // swiftlint:disable:this identifier_name
+    case museum
+    case hotel
     case other
 
     var id: String { rawValue }
@@ -37,6 +48,17 @@ enum SpotCategory: String, Codable, CaseIterable, Identifiable {
         case .gym: return "体育館"
         case .elevator: return "エレベーター"
         case .parking: return "駐車場"
+        case .convenience_store: return "コンビニ"
+        case .ramen: return "ラーメン"
+        case .cinema: return "映画館"
+        case .bookstore: return "本屋"
+        case .onsen: return "温泉・銭湯"
+        case .game_center: return "ゲームセンター"
+        case .hospital: return "病院"
+        case .atm: return "ATM"
+        case .post_office: return "郵便局"
+        case .museum: return "美術館"
+        case .hotel: return "ホテル"
         case .other: return "その他"
         }
     }
@@ -46,7 +68,7 @@ enum SpotCategory: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .restroom: return "toilet"
         case .accessible_restroom: return "figure.roll"
-        case .rest_area: return "bench.and.tree"
+        case .rest_area: return "chair.lounge"
         case .restaurant: return "fork.knife"
         case .cafe: return "cup.and.saucer.fill"
         case .park: return "leaf"
@@ -58,6 +80,17 @@ enum SpotCategory: String, Codable, CaseIterable, Identifiable {
         case .gym: return "figure.run"
         case .elevator: return "arrow.up.arrow.down"
         case .parking: return "p.square"
+        case .convenience_store: return "storefront"
+        case .ramen: return "takeoutbag.and.cup.and.straw"
+        case .cinema: return "film"
+        case .bookstore: return "text.book.closed"
+        case .onsen: return "drop.fill"
+        case .game_center: return "gamecontroller"
+        case .hospital: return "cross.case"
+        case .atm: return "banknote"
+        case .post_office: return "envelope"
+        case .museum: return "building.columns"
+        case .hotel: return "bed.double"
         case .other: return "mappin"
         }
     }
@@ -79,6 +112,17 @@ enum SpotCategory: String, Codable, CaseIterable, Identifiable {
         case .kids_space: return .pink
         case .park: return .green
         case .parking: return .gray
+        case .convenience_store: return .mint
+        case .ramen: return .red
+        case .cinema: return Color(red: 0.5, green: 0.0, blue: 0.5)
+        case .bookstore: return Color(red: 0.4, green: 0.3, blue: 0.2)
+        case .onsen: return Color(red: 0.9, green: 0.4, blue: 0.3)
+        case .game_center: return .yellow
+        case .hospital: return .red
+        case .atm: return Color(red: 0.2, green: 0.5, blue: 0.2)
+        case .post_office: return .red
+        case .museum: return Color(red: 0.4, green: 0.4, blue: 0.6)
+        case .hotel: return Color(red: 0.3, green: 0.3, blue: 0.7)
         case .other: return .secondary
         }
     }
