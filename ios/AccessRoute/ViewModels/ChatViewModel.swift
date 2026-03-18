@@ -47,6 +47,8 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - メッセージ送信
 
+    private var chatTask: Task<Void, Never>?
+
     func sendMessage() {
         let messageText = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !messageText.isEmpty else { return }
@@ -55,17 +57,65 @@ final class ChatViewModel: ObservableObject {
         inputText = ""
         isLoading = true
 
+        chatTask?.cancel()
+
         let currentLocation = locationManager.isLocationAvailable
             ? locationManager.currentLocation : nil
 
-        Task {
-            let result = await searchSpotsLocally(
-                message: messageText,
-                location: currentLocation
-            )
+        chatTask = Task.detached { [weak self] in
+            guard let self else { return }
 
-            messages.append(result)
-            isLoading = false
+            let queries = await MainActor.run {
+                self.extractSearchQueries(from: messageText)
+            }
+
+            let defaultLoc = await MainActor.run { LocationManager.defaultLocation }
+            let searchLocation = currentLocation ?? defaultLoc
+            var allSpots: [RecommendedSpot] = []
+
+            // バックグラウンドで検索（最大3件のクエリに制限）
+            for query in queries.prefix(3) {
+                guard !Task.isCancelled else { break }
+                let spots = await self.searchMapKit(
+                    query: query.keyword,
+                    near: searchLocation,
+                    reason: query.reason
+                )
+                allSpots.append(contentsOf: spots)
+            }
+
+            // 重複除去
+            var seen = Set<String>()
+            allSpots = allSpots.filter { spot in
+                let key = String(spot.name.prefix(5))
+                if seen.contains(key) { return false }
+                seen.insert(key)
+                return true
+            }
+
+            guard !Task.isCancelled else { return }
+
+            // メインスレッドでUI更新
+            await MainActor.run {
+                if allSpots.isEmpty {
+                    self.messages.append(AppChatMessage(
+                        role: .assistant,
+                        content: "「\(messageText)」に関連するスポットが見つかりませんでした。別のキーワードで試してみてください。",
+                        followupQuestion: "近くのカフェを探して"
+                    ))
+                } else {
+                    let spotNames = allSpots.prefix(3).map(\.name).joined(separator: "、")
+                    let spotIds = allSpots.map(\.id)
+                    self.messages.append(AppChatMessage(
+                        role: .assistant,
+                        content: "「\(messageText)」に関連するスポットが\(allSpots.count)件見つかりました。\n\n\(spotNames) などがおすすめです。",
+                        spots: allSpots,
+                        followupQuestion: self.generateFollowup(for: messageText),
+                        showOnMapAction: ShowOnMapAction(type: "show", spotIds: spotIds)
+                    ))
+                }
+                self.isLoading = false
+            }
         }
     }
 
@@ -78,56 +128,7 @@ final class ChatViewModel: ObservableObject {
         ))
     }
 
-    // MARK: - ローカルスポット検索（サーバー不要）
-
-    private func searchSpotsLocally(
-        message: String,
-        location: CLLocationCoordinate2D?
-    ) async -> AppChatMessage {
-        // メッセージからキーワードと検索クエリを抽出
-        let queries = extractSearchQueries(from: message)
-        let searchLocation = location ?? LocationManager.defaultLocation
-
-        // MKLocalSearch で検索
-        var allSpots: [RecommendedSpot] = []
-        for query in queries {
-            let spots = await searchMapKit(
-                query: query.keyword,
-                near: searchLocation,
-                reason: query.reason
-            )
-            allSpots.append(contentsOf: spots)
-        }
-
-        // 重複除去
-        var seen = Set<String>()
-        allSpots = allSpots.filter { spot in
-            let key = String(spot.name.prefix(5))
-            if seen.contains(key) { return false }
-            seen.insert(key)
-            return true
-        }
-
-        // 結果に応じた応答を生成
-        if allSpots.isEmpty {
-            return AppChatMessage(
-                role: .assistant,
-                content: "「\(message)」に関連するスポットが見つかりませんでした。別のキーワードで試してみてください。",
-                followupQuestion: "近くのカフェを探して"
-            )
-        }
-
-        let spotNames = allSpots.prefix(3).map(\.name).joined(separator: "、")
-        let spotIds = allSpots.map(\.id)
-
-        return AppChatMessage(
-            role: .assistant,
-            content: "「\(message)」に関連するスポットが\(allSpots.count)件見つかりました。\n\n\(spotNames) などがおすすめです。",
-            spots: allSpots,
-            followupQuestion: generateFollowup(for: message),
-            showOnMapAction: ShowOnMapAction(type: "show", spotIds: spotIds)
-        )
-    }
+    // searchSpotsLocally は sendMessage() 内に統合済み
 
     // MARK: - キーワード抽出
 
