@@ -100,16 +100,17 @@ enum MapSpotSearchService {
     ) -> [(String, SpotCategory)] {
         var queries: [(String, SpotCategory)] = []
 
-        // カフェとトイレは常に検索（実在する施設を表示）
-        queries.append(("カフェ", .cafe))
+        // トイレは常に検索（バリアフリー情報として重要）
         queries.append(("トイレ", .restroom))
+        queries.append(("多目的トイレ", .restroom))
+        queries.append(("多機能トイレ", .restroom))
 
+        // プロフィールの優先条件に基づいて追加検索
         for prefer in needs.preferConditions {
             switch prefer {
             case .cafe:
-                break // 上で追加済み
+                queries.append(("カフェ", .cafe))
             case .restroom:
-                queries.append(("多目的トイレ", .restroom))
                 queries.append(("バリアフリートイレ", .restroom))
             case .rest_area:
                 queries.append(("休憩所", .rest_area))

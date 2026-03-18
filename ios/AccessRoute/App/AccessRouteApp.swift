@@ -9,14 +9,17 @@ struct AccessRouteApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if !onboardingCompleted {
-                OnboardingView(isOnboardingCompleted: $onboardingCompleted)
-            } else if !authViewModel.isAuthenticated {
-                LoginView(authViewModel: authViewModel)
-            } else {
-                ContentView()
-                    .environmentObject(authViewModel)
+            Group {
+                if !onboardingCompleted {
+                    OnboardingView(isOnboardingCompleted: $onboardingCompleted)
+                } else if !authViewModel.isAuthenticated {
+                    LoginView(authViewModel: authViewModel)
+                } else {
+                    ContentView()
+                        .environmentObject(authViewModel)
+                }
             }
+            .preferredColorScheme(.light) // アプリ全体をライトモードに固定
         }
     }
 }

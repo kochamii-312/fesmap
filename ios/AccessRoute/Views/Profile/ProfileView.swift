@@ -13,8 +13,8 @@ struct ProfileView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
-                // 背景色（明るいグレー）
-                Color(.systemGroupedBackground)
+                // 背景色（明るいグレー・ライトモード固定）
+                Color(red: 0.96, green: 0.96, blue: 0.98)
                     .ignoresSafeArea()
 
                 ScrollView {
