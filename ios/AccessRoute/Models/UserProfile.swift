@@ -157,6 +157,9 @@ enum PreferCondition: String, Codable, CaseIterable, Identifiable {
     case restaurant
     case library
     case rental_bicycle // swiftlint:disable:this identifier_name
+    case karaoke
+    case gym
+    case elevator
 
     var id: String { rawValue }
 
@@ -169,6 +172,9 @@ enum PreferCondition: String, Codable, CaseIterable, Identifiable {
         case .restaurant: return "レストラン"
         case .library: return "図書館"
         case .rental_bicycle: return "レンタル自転車"
+        case .karaoke: return "カラオケ"
+        case .gym: return "体育館"
+        case .elevator: return "エレベーター"
         }
     }
 
@@ -181,6 +187,9 @@ enum PreferCondition: String, Codable, CaseIterable, Identifiable {
         case .restaurant: return "fork.knife"
         case .library: return "book.fill"
         case .rental_bicycle: return "bicycle"
+        case .karaoke: return "music.mic"
+        case .gym: return "figure.run"
+        case .elevator: return "arrow.up.arrow.down"
         }
     }
 
@@ -194,6 +203,9 @@ enum PreferCondition: String, Codable, CaseIterable, Identifiable {
         case .restaurant: return "🍽️"
         case .library: return "📚"
         case .rental_bicycle: return "🚲"
+        case .karaoke: return "🎤"
+        case .gym: return "🏋️"
+        case .elevator: return "🛗"
         }
     }
 
@@ -207,6 +219,9 @@ enum PreferCondition: String, Codable, CaseIterable, Identifiable {
         case .restaurant: return "周辺のレストランを表示"
         case .library: return "周辺の図書館を表示"
         case .rental_bicycle: return "レンタル自転車ポートを表示"
+        case .karaoke: return "周辺のカラオケを表示"
+        case .gym: return "周辺の体育館・ジムを表示"
+        case .elevator: return "周辺のエレベーターを表示"
         }
     }
 }

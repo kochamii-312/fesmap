@@ -9,8 +9,10 @@
 	<!-- App Transport Security -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
 		<key>NSAllowsArbitraryLoads</key>
-		<false/>
+		<true/>
 	</dict>
 
 	<!-- バージョン情報 -->

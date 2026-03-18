@@ -13,6 +13,8 @@ enum SpotCategory: String, Codable, CaseIterable, Identifiable {
     case accessible_restroom // swiftlint:disable:this identifier_name
     case library
     case rental_bicycle // swiftlint:disable:this identifier_name
+    case karaoke
+    case gym
     case elevator
     case parking
     case other
@@ -31,6 +33,8 @@ enum SpotCategory: String, Codable, CaseIterable, Identifiable {
         case .nursing_room: return "授乳室"
         case .library: return "図書館"
         case .rental_bicycle: return "レンタル自転車"
+        case .karaoke: return "カラオケ"
+        case .gym: return "体育館"
         case .elevator: return "エレベーター"
         case .parking: return "駐車場"
         case .other: return "その他"
@@ -50,6 +54,8 @@ enum SpotCategory: String, Codable, CaseIterable, Identifiable {
         case .nursing_room: return "heart"
         case .library: return "book.fill"
         case .rental_bicycle: return "bicycle"
+        case .karaoke: return "music.mic"
+        case .gym: return "figure.run"
         case .elevator: return "arrow.up.arrow.down"
         case .parking: return "p.square"
         case .other: return "mappin"
@@ -66,6 +72,8 @@ enum SpotCategory: String, Codable, CaseIterable, Identifiable {
         case .restaurant: return .orange
         case .library: return Color(red: 0.3, green: 0.5, blue: 0.3) // 深緑
         case .rental_bicycle: return .cyan
+        case .karaoke: return .indigo
+        case .gym: return .teal
         case .elevator: return .purple
         case .nursing_room: return .pink
         case .kids_space: return .pink
@@ -102,8 +110,36 @@ struct SpotSummary: Codable, Identifiable {
     let name: String
     let category: SpotCategory
     let location: LatLng
-    let accessibilityScore: Int
+    var accessibilityScore: Int
     let distanceFromRoute: Double
+    var isBarrierFree: Bool = false // バリアフリー対応推定
+
+    // Codable でデフォルト値対応
+    enum CodingKeys: String, CodingKey {
+        case spotId, name, category, location, accessibilityScore, distanceFromRoute, isBarrierFree
+    }
+
+    init(spotId: String, name: String, category: SpotCategory, location: LatLng,
+         accessibilityScore: Int, distanceFromRoute: Double, isBarrierFree: Bool = false) {
+        self.spotId = spotId
+        self.name = name
+        self.category = category
+        self.location = location
+        self.accessibilityScore = accessibilityScore
+        self.distanceFromRoute = distanceFromRoute
+        self.isBarrierFree = isBarrierFree
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        spotId = try container.decode(String.self, forKey: .spotId)
+        name = try container.decode(String.self, forKey: .name)
+        category = try container.decode(SpotCategory.self, forKey: .category)
+        location = try container.decode(LatLng.self, forKey: .location)
+        accessibilityScore = try container.decode(Int.self, forKey: .accessibilityScore)
+        distanceFromRoute = try container.decode(Double.self, forKey: .distanceFromRoute)
+        isBarrierFree = (try? container.decode(Bool.self, forKey: .isBarrierFree)) ?? false
+    }
 }
 
 // スポット詳細

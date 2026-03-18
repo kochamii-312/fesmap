@@ -49,10 +49,8 @@ enum AppConfig {
         Bundle.main.infoDictionary?["FIREBASE_API_KEY"] as? String ?? ""
     }
 
-    // Google Maps APIキー（Info.plistまたは環境変数から取得）
-    static var googleMapsAPIKey: String {
-        Bundle.main.infoDictionary?["GOOGLE_MAPS_API_KEY"] as? String ?? ""
-    }
+    // Google Maps APIキー
+    static let googleMapsAPIKey = "AIzaSyChnBsPbggORaeE9Kas8fcfzg52CQ7Vgp4"
 
     // Yahoo! YOLP アプリケーションID
     static var yolpAppId: String {
@@ -70,6 +68,16 @@ enum AppConfig {
         case .staging:
             return "https://asia-northeast1-accessroute-staging.cloudfunctions.net/api/api"
         case .production:
+            return "https://asia-northeast1-accessroute-18207.cloudfunctions.net/api/api"
+        }
+    }
+
+    // AIサーバーURL
+    static var aiServerURL: String {
+        switch environment {
+        case .development:
+            return "http://192.168.10.165:8000"
+        case .staging, .production:
             return "https://asia-northeast1-accessroute-18207.cloudfunctions.net/api/api"
         }
     }

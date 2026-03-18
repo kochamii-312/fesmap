@@ -206,26 +206,55 @@ actor APIService {
 
     // MARK: - AIチャッﾄ (v2: スポット推薦)
 
-    // YOLP連携によるスポット推薦
+    // YOLP連携によるスポット推薦（AIサーバーに直接リクエスト）
     func getSpotSuggestions(
         message: String,
         latitude: Double?,
         longitude: Double?
     ) async throws -> YolpChatResponse {
-        // v2エンドポイントはバックエンドのFirebase Authではなく、AIサーバーの認証に依存する可能性がある
-        // ここでは一旦トークンなしで呼び出すか、あるいはAIサーバー用の別の認証キーを使う
-        // 今回はデモとして、既存のトークンを利用する
-        let token = try await getToken()
+        let aiBaseURL = AppConfig.aiServerURL
+        guard let url = URL(string: aiBaseURL + "/v2/chat") else {
+            throw APIError.invalidURL
+        }
+
         let yolpRequest = YolpChatRequest(
             message: message,
             latitude: latitude,
             longitude: longitude
         )
-        // 注意: APIServiceのbaseURLはbackendを指している。
-        // ai-serverを呼び出すには、URLを切り替えるか、backendにプロキシさせる必要がある。
-        // ここではbackendに /v2/chat がプロキシされていると仮定する。
-        // もしai-serverが別ドメインなら、AppConfigに `aiServerBaseURL` を追加するのが望ましい。
-        return try await request(method: "POST", path: "/v2/chat", body: yolpRequest, token: token)
+
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.timeoutInterval = 10
+        urlRequest.httpBody = try encoder.encode(yolpRequest)
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: urlRequest)
+        } catch {
+            throw APIError.networkError(error)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.networkError(URLError(.badServerResponse))
+        }
+
+        switch httpResponse.statusCode {
+        case 200...299:
+            break
+        case 404:
+            throw APIError.notFound
+        default:
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+
+        do {
+            return try decoder.decode(YolpChatResponse.self, from: data)
+        } catch {
+            throw APIError.decodingError(error)
+        }
     }
 
     // MARK: - AIチャット

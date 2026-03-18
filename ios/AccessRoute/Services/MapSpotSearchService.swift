@@ -117,6 +117,13 @@ enum MapSpotSearchService {
             case .rental_bicycle:
                 queries.append(("レンタサイクル", .rental_bicycle))
                 queries.append(("シェアサイクル", .rental_bicycle))
+            case .karaoke:
+                queries.append(("カラオケ", .karaoke))
+            case .gym:
+                queries.append(("体育館", .gym))
+                queries.append(("スポーツジム", .gym))
+            case .elevator:
+                queries.append(("エレベーター", .elevator))
             case .rest_area:
                 queries.append(("休憩所", .rest_area))
             case .covered:
@@ -174,13 +181,15 @@ enum MapSpotSearchService {
                 // 半径内のスポットのみ
                 guard distance <= radius else { return nil }
 
+                let isBarrierFree = estimateBarrierFree(for: item, category: category)
                 return SpotSummary(
                     spotId: "mk_\(UUID().uuidString.prefix(8))",
                     name: name,
                     category: category,
                     location: LatLng(lat: itemCoord.latitude, lng: itemCoord.longitude),
                     accessibilityScore: estimateAccessibilityScore(for: item, category: category),
-                    distanceFromRoute: distance
+                    distanceFromRoute: distance,
+                    isBarrierFree: isBarrierFree
                 )
             }
         } catch {
@@ -285,28 +294,52 @@ enum MapSpotSearchService {
         }
     }
 
-    // MapItem からアクセシビリティスコアを推定
+    // バリアフリー対応を推定
+    static func estimateBarrierFree(for item: MKMapItem, category: SpotCategory) -> Bool {
+        let name = item.name ?? ""
+
+        // 公共施設はバリアフリー対応が多い
+        if category == .library || category == .accessible_restroom || category == .elevator {
+            return true
+        }
+
+        // 大規模チェーン店はバリアフリー対応が多い
+        let barrierFreeChains = [
+            "スターバックス", "Starbucks", "ドトール", "タリーズ", "Tully",
+            "マクドナルド", "McDonald", "ガスト", "サイゼリヤ", "デニーズ",
+            "ジョナサン", "バーミヤン", "ロイヤルホスト", "ココス",
+            "モスバーガー", "ケンタッキー", "KFC", "吉野家", "すき家",
+            "松屋", "コメダ", "珈琲", "DOUTOR", "Pronto", "PRONTO"
+        ]
+        if barrierFreeChains.contains(where: { name.contains($0) }) {
+            return true
+        }
+
+        // 駅ビル・商業施設内はバリアフリー対応が多い
+        let facilityKeywords = ["駅", "モール", "ビル", "プラザ", "アトレ", "ルミネ", "マルイ"]
+        if facilityKeywords.contains(where: { name.contains($0) }) {
+            return true
+        }
+
+        return false
+    }
+
+    // プロフィール関連度スコアを算出
     private static func estimateAccessibilityScore(
         for item: MKMapItem, category: SpotCategory
     ) -> Int {
-        var score = 70 // ベーススコア
-
-        // カテゴリに応じたボーナス
-        switch category {
-        case .elevator: score += 20
-        case .restroom: score += 15
-        case .rest_area: score += 10
-        case .cafe: score += 10
-        case .nursing_room: score += 15
-        default: break
-        }
-
-        // 大規模施設は通常バリアフリー対応
-        if item.pointOfInterestCategory == .restaurant ||
-           item.pointOfInterestCategory == .cafe {
-            score += 5
-        }
-
-        return min(100, score)
+        let isBarrierFree = estimateBarrierFree(for: item, category: category)
+        let tempSpot = SpotSummary(
+            spotId: "temp",
+            name: item.name ?? "",
+            category: category,
+            location: LatLng(lat: 0, lng: 0),
+            accessibilityScore: 70,
+            distanceFromRoute: 0,
+            isBarrierFree: isBarrierFree
+        )
+        let needs = UserNeedsService.loadUnifiedNeeds()
+        let scored = NearbySpotService.scoreSpot(tempSpot, needs: needs)
+        return scored.relevanceScore
     }
 }

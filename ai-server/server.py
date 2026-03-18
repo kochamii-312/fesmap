@@ -213,8 +213,8 @@ def _process_extracted_needs(
     return needs_data, suggested_action, confidence
 
 
-@app.post("/v1/chat")
-async def chat(request: AIChatRequest) -> AIChatResponse | StreamingResponse:
+@app.post("/v1/chat", response_model=None)
+async def chat(request: AIChatRequest):
     """AIチャット応答生成エンドポイント。"""
     try:
         chat_messages = _build_chat_messages(request)

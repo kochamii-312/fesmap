@@ -118,7 +118,7 @@ struct YolpChatResponse: Codable {
 }
 
 /// AIによって推薦されたスポット情報
-struct RecommendedSpot: Codable, Identifiable {
+struct RecommendedSpot: Codable, Identifiable, Equatable {
     let id: String
     let name: String
     let reason: String
