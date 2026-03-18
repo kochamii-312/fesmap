@@ -26,58 +26,77 @@ final class RouteViewModel: ObservableObject {
     // 最後に検索した目的地座標
     private var lastDestCoord: CLLocationCoordinate2D?
 
+    // 前回の検索タスク（キャンセル用）
+    private var searchTask: Task<Void, Never>?
 
     // ルート検索
     func searchRouteByName() async {
-        let origin = originText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let destination = destinationText.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 前回の検索をキャンセル
+        searchTask?.cancel()
+        let task = Task {
+            let origin = originText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let destination = destinationText.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard !destination.isEmpty else {
-            errorMessage = "目的地を入力してください"
-            return
-        }
-
-        isSearching = true
-        errorMessage = nil
-        mkRoutes = []
-        routeResults = []
-        transitSegments = []
-
-        let originName = origin.isEmpty ? "現在地" : origin
-        var searchedDestCL: CLLocationCoordinate2D?
-
-        do {
-            let originCoord = try await GeocodingService.shared.geocode(originName)
-            let destCoord = try await GeocodingService.shared.geocode(destination)
-
-            let originCL = CLLocationCoordinate2D(latitude: originCoord.lat, longitude: originCoord.lng)
-            let destCL = CLLocationCoordinate2D(latitude: destCoord.lat, longitude: destCoord.lng)
-            searchedDestCL = destCL
-
-            if selectedMode == .transit {
-                await searchTransitRoute(origin: originCL, destination: destCL)
-            } else {
-                try await searchMKDirectionsRoute(origin: originCL, destination: destCL)
+            guard !destination.isEmpty else {
+                errorMessage = "目的地を入力してください"
+                return
             }
-        } catch {
-            errorMessage = "ルート検索に失敗しました: \(error.localizedDescription)"
-            routeResults = Self.mockRouteResults()
-            if let first = routeResults.first {
-                selectedRoute = first
-            }
-        }
 
-        // 目的地周辺のおすすめスポットを検索
-        if let destCL = searchedDestCL {
-            lastDestCoord = destCL
-            Task {
-                destinationSpots = await MapSpotSearchService.searchSpotsNearDestination(
-                    destination: destCL
-                )
-            }
-        }
+            isSearching = true
+            errorMessage = nil
+            mkRoutes = []
+            routeResults = []
+            transitSegments = []
 
-        isSearching = false
+            let originName = origin.isEmpty ? "現在地" : origin
+            var searchedDestCL: CLLocationCoordinate2D?
+
+            do {
+                let originCoord = try await GeocodingService.shared.geocode(originName)
+                // キャンセルされていたら早期終了
+                guard !Task.isCancelled else {
+                    isSearching = false
+                    return
+                }
+                let destCoord = try await GeocodingService.shared.geocode(destination)
+                guard !Task.isCancelled else {
+                    isSearching = false
+                    return
+                }
+
+                let originCL = CLLocationCoordinate2D(latitude: originCoord.lat, longitude: originCoord.lng)
+                let destCL = CLLocationCoordinate2D(latitude: destCoord.lat, longitude: destCoord.lng)
+                searchedDestCL = destCL
+
+                if selectedMode == .transit {
+                    await searchTransitRoute(origin: originCL, destination: destCL)
+                } else {
+                    try await searchMKDirectionsRoute(origin: originCL, destination: destCL)
+                }
+            } catch {
+                if !Task.isCancelled {
+                    errorMessage = "ルート検索に失敗しました: \(error.localizedDescription)"
+                    routeResults = Self.mockRouteResults()
+                    if let first = routeResults.first {
+                        selectedRoute = first
+                    }
+                }
+            }
+
+            // 目的地周辺のおすすめスポットを検索
+            if let destCL = searchedDestCL, !Task.isCancelled {
+                lastDestCoord = destCL
+                Task {
+                    destinationSpots = await MapSpotSearchService.searchSpotsNearDestination(
+                        destination: destCL
+                    )
+                }
+            }
+
+            isSearching = false
+        }
+        searchTask = task
+        await task.value
     }
 
     // MARK: - MKDirections ルート検索（徒歩/車/自転車）

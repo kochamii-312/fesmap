@@ -16,6 +16,7 @@ final class HomeViewModel: ObservableObject {
 
     // デバウンス用タスク
     private var suggestionTask: Task<Void, Never>?
+    private var searchTask: Task<Void, Never>?
 
     // 周辺スポットから距離が近い上位5件をおすすめとして表示する
     var recommendedNearbySpots: [SpotSummary] {
@@ -93,6 +94,7 @@ final class HomeViewModel: ObservableObject {
     // MARK: - 周辺スポット検索（ユーザーの好みに基づく）
 
     func searchNearbySpots(lat: Double, lng: Double) async {
+        searchTask?.cancel()
         isSearching = true
         errorMessage = nil
 

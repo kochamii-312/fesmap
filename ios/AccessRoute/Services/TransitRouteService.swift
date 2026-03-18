@@ -260,9 +260,9 @@ enum TransitRouteService {
         })
 
         while !queue.isEmpty {
-            // 最小コストを取り出す（簡易優先キュー）
-            queue.sort { $0.cost < $1.cost }
-            let current = queue.removeFirst()
+            // Find minimum cost element instead of sorting entire array
+            guard let minIndex = queue.indices.min(by: { queue[$0].cost < queue[$1].cost }) else { break }
+            let current = queue.remove(at: minIndex)
 
             // 既により良い経路が見つかっている場合はスキップ
             if let known = dist[current.node], current.cost > known {
@@ -576,6 +576,11 @@ enum TransitRouteService {
         // まず駅座標リストを取得
         let stationCoords = buildPolylineCoordinates(from: path)
         guard stationCoords.count >= 2 else { return stationCoords }
+
+        // Limit to max 5 segment lookups to avoid freezing
+        if stationCoords.count > 6 {
+            return stationCoords  // Use straight lines for long routes
+        }
 
         var detailedCoords: [CLLocationCoordinate2D] = []
 

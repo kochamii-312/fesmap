@@ -490,6 +490,7 @@ final class DestinationSpotsViewModel: ObservableObject {
     @Published var detailCache: [String: GooglePlacesService.SpotDetailInfo] = [:]
 
     private let locationManager = CLLocationManager()
+    private var fetchTask: Task<Void, Never>?
 
     // 起動時に現在地周辺を検索
     func searchNearCurrentLocation() async {
@@ -544,11 +545,13 @@ final class DestinationSpotsViewModel: ObservableObject {
         fetchDetailsInBackground()
     }
 
-    // バックグラウンドで全スポットの詳細を事前取得
+    // バックグラウンドで上位スポットの詳細を事前取得（最大5件に制限）
     private func fetchDetailsInBackground() {
-        let spotsToFetch = spots
-        Task.detached {
+        fetchTask?.cancel()
+        let spotsToFetch = Array(spots.prefix(5))
+        fetchTask = Task.detached {
             for spot in spotsToFetch {
+                guard !Task.isCancelled else { break }
                 let coord = CLLocationCoordinate2D(
                     latitude: spot.location.lat, longitude: spot.location.lng
                 )
@@ -559,6 +562,7 @@ final class DestinationSpotsViewModel: ObservableObject {
                         self.detailCache[spot.spotId] = detail
                     }
                 }
+                try? await Task.sleep(for: .milliseconds(300))
             }
         }
     }

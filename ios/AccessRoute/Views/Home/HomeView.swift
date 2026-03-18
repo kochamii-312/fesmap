@@ -37,37 +37,23 @@ struct HomeView: View {
                 locationManager.startUpdating()
             }
             .onChange(of: locationManager.currentLocation?.latitude) { _, _ in
-                let loc = locationManager.locationOrDefault
-                // 初回のGPS取得時に現在地にズーム
                 if !hasMovedToUserLocation, locationManager.currentLocation != nil {
                     hasMovedToUserLocation = true
                     withAnimation(.easeInOut(duration: 0.5)) {
                         cameraPosition = .region(MKCoordinateRegion(
-                            center: loc,
+                            center: locationManager.locationOrDefault,
                             latitudinalMeters: 800,
                             longitudinalMeters: 800
                         ))
                     }
                 }
-                Task {
-                    await viewModel.searchNearbySpots(lat: loc.latitude, lng: loc.longitude)
-                    await viewModel.updateCurrentAddress(lat: loc.latitude, lng: loc.longitude)
-                }
             }
-            .onAppear {
-                // GPS取得後に onChange で検索されるので、ここではデフォルト位置は使わない
-                // GPSが既に取得済みならそれを使用
-                if let loc = locationManager.currentLocation {
-                    cameraPosition = .region(MKCoordinateRegion(
-                        center: loc,
-                        latitudinalMeters: 800,
-                        longitudinalMeters: 800
-                    ))
-                    Task {
-                        await viewModel.searchNearbySpots(lat: loc.latitude, lng: loc.longitude)
-                        await viewModel.updateCurrentAddress(lat: loc.latitude, lng: loc.longitude)
-                    }
-                }
+            .task {
+                // 位置情報が利用可能になるまで待機してからスポット検索を1回実行
+                try? await Task.sleep(for: .seconds(2))
+                let loc = locationManager.locationOrDefault
+                await viewModel.searchNearbySpots(lat: loc.latitude, lng: loc.longitude)
+                await viewModel.updateCurrentAddress(lat: loc.latitude, lng: loc.longitude)
             }
             .onDisappear {
                 locationManager.stopUpdating()

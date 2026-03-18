@@ -20,57 +20,56 @@ enum MapSpotSearchService {
             queries = [("トイレ", SpotCategory.restroom)]
         }
 
-        // Apple Maps + YOLP で並列検索
-        await withTaskGroup(of: [SpotSummary].self) { group in
-            // Apple Maps（MKLocalSearch）
-            for (query, category) in queries {
-                group.addTask {
-                    await searchMapKit(
-                        query: query,
-                        category: category,
-                        near: coordinate,
-                        radius: radius
-                    )
+        // Apple Maps（MKLocalSearch）をバッチ3件ずつ並列検索
+        for batch in queries.chunked(into: 3) {
+            await withTaskGroup(of: [SpotSummary].self) { group in
+                for (query, category) in batch {
+                    group.addTask {
+                        await searchMapKit(
+                            query: query,
+                            category: category,
+                            near: coordinate,
+                            radius: radius
+                        )
+                    }
                 }
-            }
-
-            // Yahoo! YOLP（日本のローカルビジネスに強い）
-            for (query, category) in queries {
-                group.addTask {
-                    await searchYOLP(
-                        query: query,
-                        category: category,
-                        near: coordinate,
-                        radius: radius
-                    )
+                for await spots in group {
+                    allSpots.append(contentsOf: spots)
                 }
-            }
-
-            for await spots in group {
-                allSpots.append(contentsOf: spots)
             }
         }
 
-        // 重複除去（名前の類似度 + 近接距離で判定）
-        var uniqueSpots: [SpotSummary] = []
-        for spot in allSpots {
-            let isDuplicate = uniqueSpots.contains { existing in
-                // 50m以内で名前が部分一致するものは重複
-                let dist = TransitRouteService.haversineDistance(
-                    from: CLLocationCoordinate2D(latitude: spot.location.lat, longitude: spot.location.lng),
-                    to: CLLocationCoordinate2D(latitude: existing.location.lat, longitude: existing.location.lng)
-                )
-                if dist > 50 { return false }
-                // 名前の先頭3文字が一致、または一方が他方を含む
-                let a = spot.name.prefix(3)
-                let b = existing.name.prefix(3)
-                return a == b || spot.name.contains(existing.name) || existing.name.contains(spot.name)
-            }
-            if !isDuplicate {
-                uniqueSpots.append(spot)
+        // Yahoo! YOLP をバッチ3件ずつ並列検索
+        for batch in queries.chunked(into: 3) {
+            await withTaskGroup(of: [SpotSummary].self) { group in
+                for (query, category) in batch {
+                    group.addTask {
+                        await searchYOLP(
+                            query: query,
+                            category: category,
+                            near: coordinate,
+                            radius: radius
+                        )
+                    }
+                }
+                for await spots in group {
+                    allSpots.append(contentsOf: spots)
+                }
             }
         }
-        allSpots = uniqueSpots
+
+        // 重複除去（グリッドキーによる O(n) 判定）
+        var seen = Set<String>()
+        allSpots = allSpots.filter { spot in
+            // ~50m精度のグリッドキー + 名前先頭3文字で重複判定
+            let latKey = Int(spot.location.lat * 200)
+            let lngKey = Int(spot.location.lng * 200)
+            let nameKey = String(spot.name.prefix(3))
+            let key = "\(nameKey)_\(latKey)_\(lngKey)"
+            if seen.contains(key) { return false }
+            seen.insert(key)
+            return true
+        }
 
         // スコアリング
         let scored = allSpots.map { spot in
@@ -255,7 +254,7 @@ enum MapSpotSearchService {
         guard let url = components.url else { return [] }
 
         var request = URLRequest(url: url)
-        request.timeoutInterval = 10
+        request.timeoutInterval = 5
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -341,5 +340,16 @@ enum MapSpotSearchService {
         let needs = UserNeedsService.loadUnifiedNeeds()
         let scored = NearbySpotService.scoreSpot(tempSpot, needs: needs)
         return scored.relevanceScore
+    }
+}
+
+// MARK: - Array バッチ分割ヘルパー
+
+private extension Array {
+    /// 配列を指定サイズのバッチに分割する
+    func chunked(into size: Int) -> [[Element]] {
+        stride(from: 0, to: count, by: size).map {
+            Array(self[$0..<Swift.min($0 + size, count)])
+        }
     }
 }
