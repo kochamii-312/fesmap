@@ -28,7 +28,7 @@ struct ProfileView: View {
                         // 3. 回避したい条件セクション
                         avoidSection
 
-                        // 4. 優先したい条件セクション
+                        // 4. おすすめリストセクション
                         preferSection
 
                         // 5. 最大移動距離カード
@@ -259,17 +259,18 @@ struct ProfileView: View {
         }
     }
 
-    // MARK: - 4. 優先したい条件セクション
+    // MARK: - 4. おすすめリストセクション
 
     private var preferSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("優先したい条件")
+            Text("おすすめリスト")
                 .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(.black)
                 .padding(.leading, 4)
 
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                ForEach(PreferCondition.allCases) { condition in
+                ForEach(PreferCondition.allCases.filter { $0 != .rest_area && $0 != .covered }) { condition in
+                    // トイレ、カフェ、レストラン、図書館、レンタル自転車を表示
                     let isSelected = viewModel.selectedPreferConditions.contains(condition)
 
                     Button {
