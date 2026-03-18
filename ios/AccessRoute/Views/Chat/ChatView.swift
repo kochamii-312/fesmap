@@ -135,22 +135,32 @@ struct ChatView: View {
         .accessibilityLabel("\(message.role == .user ? "ユーザー" : "AIアシスタント"): \(message.content)")
     }
 
-    // MARK: - スポットカード
+    // MARK: - スポットカード（タップで詳細取得）
 
     private func spotCards(for spots: [RecommendedSpot]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(spots) { spot in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(spot.name)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                    Text(spot.reason)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                Button {
+                    viewModel.fetchSpotDetail(spot: spot)
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(spot.name)
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.primary)
+                            Text(spot.reason)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(.blue)
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 10))
                 }
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 10))
             }
         }
     }
