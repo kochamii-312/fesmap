@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 // スポットカテゴリ
 enum SpotCategory: String, Codable, CaseIterable, Identifiable {
@@ -36,13 +37,29 @@ enum SpotCategory: String, Codable, CaseIterable, Identifiable {
         case .restroom: return "toilet"
         case .rest_area: return "bench.and.tree"
         case .restaurant: return "fork.knife"
-        case .cafe: return "cup.and.saucer"
+        case .cafe: return "cup.and.saucer.fill"
         case .park: return "leaf"
         case .kids_space: return "figure.and.child.holdinghands"
         case .nursing_room: return "heart"
         case .elevator: return "arrow.up.arrow.down"
         case .parking: return "p.square"
         case .other: return "mappin"
+        }
+    }
+
+    // カテゴリ別マーカーカラー
+    var markerColor: Color {
+        switch self {
+        case .cafe: return .brown
+        case .restroom: return .blue
+        case .rest_area: return .green
+        case .restaurant: return .orange
+        case .elevator: return .purple
+        case .nursing_room: return .pink
+        case .kids_space: return .pink
+        case .park: return .green
+        case .parking: return .gray
+        case .other: return .secondary
         }
     }
 }

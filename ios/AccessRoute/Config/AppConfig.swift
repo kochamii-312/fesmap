@@ -54,6 +54,12 @@ enum AppConfig {
         Bundle.main.infoDictionary?["GOOGLE_MAPS_API_KEY"] as? String ?? ""
     }
 
+    // Yahoo! YOLP アプリケーションID
+    static var yolpAppId: String {
+        Bundle.main.infoDictionary?["YOLP_APP_ID"] as? String
+            ?? "dmVyPTIwMjUwNyZpZD1IOXlmQjZsVXU4Jmhhc2g9TkdGaVpUY3dZMlk1WlRjell6STNaZw"
+    }
+
     // MARK: - API設定
 
     // APIベースURL（環境ごとに切替）

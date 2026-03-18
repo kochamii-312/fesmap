@@ -133,6 +133,7 @@ struct RouteDetailView: View {
                 .tint(.red)
             }
         }
+        .mapStyle(.standard(pointsOfInterest: .excludingAll))
         .frame(height: 200)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .padding(.horizontal)

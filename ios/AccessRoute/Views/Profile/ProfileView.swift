@@ -1,584 +1,438 @@
 import SwiftUI
 
-// プロファイル編集画面
+// プロファイル編集画面（Expo Go版デザイン準拠）
 struct ProfileView: View {
     @StateObject private var viewModel = ProfileViewModel()
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var showSaveAlert = false
+
+    // Expo版で使用する移動手段（otherを除外）
+    private var displayMobilityTypes: [MobilityType] {
+        MobilityType.allCases.filter { $0 != .other }
+    }
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Form {
-                    // プロファイル完了度
-                    profileCompletionSection
+            ZStack(alignment: .bottom) {
+                // 背景色（明るいグレー）
+                Color(.systemGroupedBackground)
+                    .ignoresSafeArea()
 
-                    // チャットから抽出されたニーズとの差分
-                    if !viewModel.needsDiffItems.isEmpty {
-                        needsDiffSection
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // 1. プロファイル完了度カード
+                        completionCard
+
+                        // 2. 移動手段セクション
+                        mobilitySection
+
+                        // 3. 回避したい条件セクション
+                        avoidSection
+
+                        // 4. 優先したい条件セクション
+                        preferSection
+
+                        // 5. 最大移動距離カード
+                        distanceCard
+
+                        // 保存ボタンの下に余白を確保
+                        Spacer().frame(height: 80)
                     }
-
-                    // 移動手段
-                    mobilitySection
-
-                    // 同行者
-                    companionSection
-
-                    // 最大移動距離
-                    distanceSection
-
-                    // 回避条件
-                    avoidSection
-
-                    // 希望条件
-                    preferSection
-
-                    // バリデーション警告
-                    if let warning = viewModel.validationErrors["avoidWarning"] {
-                        validationWarningSection(message: warning)
-                    }
-
-                    // 保存ボタン
-                    saveSection
-
-                    // エラー表示
-                    if let error = viewModel.errorMessage {
-                        Section {
-                            Text(error)
-                                .foregroundStyle(.red)
-                                .font(.caption)
-                                .accessibilityLabel("エラー: \(error)")
-                        }
-                    }
-
-                    // アプリ情報
-                    appInfoSection
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
                 }
 
-                // 保存成功オーバーレイ
-                if viewModel.showSaveSuccessOverlay {
-                    saveSuccessOverlay
-                }
+                // 6. 固定保存ボタン
+                saveButton
             }
             .navigationTitle("プロファイル")
             .navigationBarTitleDisplayMode(.inline)
             .task {
                 await viewModel.loadProfile()
             }
-        }
-    }
-
-    // MARK: - プロファイル完了度セクション
-
-    private var profileCompletionSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("プロファイル完了度")
-                        .font(.headline)
-
-                    Spacer()
-
-                    Text("\(viewModel.completionPercentage)%")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundStyle(completionColor)
-                        .accessibilityLabel("完了度 \(viewModel.completionPercentage)パーセント")
-                }
-
-                // プログレスバー
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color(.systemGray5))
-                            .frame(height: 12)
-
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(completionColor)
-                            .frame(
-                                width: geometry.size.width * CGFloat(viewModel.completionPercentage) / 100,
-                                height: 12
-                            )
-                            .animation(.easeInOut(duration: 0.5), value: viewModel.completionPercentage)
-                    }
-                }
-                .frame(height: 12)
-                .accessibilityHidden(true)
-
-                Text(viewModel.completionAdvice)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            .alert("保存完了", isPresented: $showSaveAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("設定を保存しました")
             }
-            .padding(.vertical, 4)
-        }
-    }
-
-    // 完了度に応じたカラー
-    private var completionColor: Color {
-        switch viewModel.completionPercentage {
-        case 80...100: return AppColors.success
-        case 40..<80: return AppColors.warningText
-        default: return AppColors.error
-        }
-    }
-
-    // MARK: - チャット抽出ニーズ差分セクション
-
-    private var needsDiffSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(viewModel.needsDiffItems) { item in
-                    HStack(spacing: 12) {
-                        Image(systemName: item.iconName)
-                            .foregroundStyle(AppColors.infoText)
-                            .frame(width: 24)
-                            .accessibilityHidden(true)
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.field)
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-
-                            HStack(spacing: 4) {
-                                Text(item.currentValue)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .strikethrough()
-
-                                Image(systemName: "arrow.right")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .accessibilityHidden(true)
-
-                                Text(item.suggestedValue)
-                                    .font(.caption)
-                                    .foregroundStyle(AppColors.infoText)
-                                    .fontWeight(.medium)
-                            }
-                        }
-
-                        Spacer()
-                    }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel("\(item.field): 現在の値 \(item.currentValue)、提案値 \(item.suggestedValue)")
-                }
-
-                Button {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        viewModel.applyExtractedNeeds()
-                    }
-                } label: {
-                    HStack {
-                        Spacer()
-                        Label("提案をすべて反映する", systemImage: "checkmark.circle.fill")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                        Spacer()
-                    }
-                    .ensureMinimumTapTarget()
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(AppColors.accent)
-                .accessibilityLabel("チャットの提案をプロファイルに反映")
-                .accessibilityHint("タップするとチャットから抽出されたニーズでプロファイルを更新します")
+            .alert("エラー", isPresented: Binding(
+                get: { viewModel.errorMessage != nil },
+                set: { if !$0 { viewModel.errorMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(viewModel.errorMessage ?? "")
             }
-            .padding(.vertical, 4)
-        } header: {
-            Label("チャットからの提案", systemImage: "sparkles")
-                .foregroundStyle(AppColors.infoText)
-        } footer: {
-            Text("会話の中で検出されたあなたのニーズです。反映ボタンでプロファイルに取り込めます。")
-                .font(.caption)
         }
     }
 
-    // MARK: - 移動手段セクション（絵文字 + カラー付き）
+    // MARK: - 1. プロファイル完了度カード
+
+    private var completionCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("プロファイル完了度")
+                    .font(.subheadline)
+                    .foregroundStyle(.black)
+
+                Spacer()
+
+                Text("\(viewModel.completionPercentage)%")
+                    .font(.title)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color(hex: 0x007AFF))
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("プロファイル完了度 \(viewModel.completionPercentage)パーセント")
+
+            // プログレスバー
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color(.systemGray4))
+                        .frame(height: 12)
+
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color(hex: 0x007AFF))
+                        .frame(
+                            width: geometry.size.width * CGFloat(viewModel.completionPercentage) / 100,
+                            height: 12
+                        )
+                        .animation(.easeInOut(duration: 0.5), value: viewModel.completionPercentage)
+                }
+            }
+            .frame(height: 12)
+            .accessibilityHidden(true)
+        }
+        .padding(20)
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 20))
+        .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
+    }
+
+    // MARK: - 2. 移動手段セクション
 
     private var mobilitySection: some View {
-        Section {
-            ForEach(MobilityType.allCases) { type in
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        viewModel.mobilityType = type
-                    }
-                } label: {
-                    HStack(spacing: 12) {
-                        // 絵文字アイコン
-                        Text(type.emoji)
-                            .font(.title2)
-                            .frame(width: 36, height: 36)
-                            .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 12) {
+            Text("移動手段")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(.black)
+                .padding(.leading, 4)
 
-                        // ラベルと説明テキスト
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(type.label)
-                                .font(.body)
-                                .foregroundStyle(AppColors.textPrimary)
+            VStack(spacing: 0) {
+                ForEach(Array(displayMobilityTypes.enumerated()), id: \.element.id) { index, type in
+                    let isSelected = viewModel.mobilityType == type
 
-                            Text(type.descriptionText)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-
-                        // 選択状態インジケーター
-                        if viewModel.mobilityType == type {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(AppColors.accent)
-                                .font(.title3)
-                                .accessibilityHidden(true)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 8)
-                    .background(
-                        viewModel.mobilityType == type
-                            ? Color.blue.opacity(0.08) : Color.clear,
-                        in: RoundedRectangle(cornerRadius: 10)
-                    )
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .ensureMinimumTapTarget()
-                .accessibilityLabel("\(type.label) — \(type.descriptionText)")
-                .accessibilityValue(viewModel.mobilityType == type ? "選択中" : "未選択")
-                .accessibilityAddTraits(viewModel.mobilityType == type ? .isSelected : [])
-            }
-        } header: {
-            sectionHeader(title: "移動手段", systemImage: "figure.walk")
-        } footer: {
-            Text("ルート検索時に段差・勾配などの条件を最適化するために使用します")
-                .font(.caption)
-        }
-    }
-
-    // MARK: - 同行者セクション
-
-    private var companionSection: some View {
-        Section {
-            ForEach(Companion.allCases) { companion in
-                Toggle(isOn: Binding(
-                    get: { viewModel.selectedCompanions.contains(companion) },
-                    set: { _ in
+                    Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
-                            viewModel.toggleCompanion(companion)
+                            viewModel.mobilityType = type
                         }
-                    }
-                )) {
-                    HStack(spacing: 12) {
-                        Image(systemName: companion.iconName)
-                            .font(.title3)
-                            .foregroundStyle(
-                                viewModel.selectedCompanions.contains(companion)
-                                    ? AppColors.accent : .secondary
-                            )
-                            .frame(width: 32, height: 32)
-                            .accessibilityHidden(true)
+                    } label: {
+                        HStack(spacing: 14) {
+                            // 絵文字アイコンボックス
+                            Text(type.emoji)
+                                .font(.system(size: 22))
+                                .frame(width: 44, height: 44)
+                                .background(
+                                    Color(hex: mobilityColorValue(for: type)).opacity(0.15),
+                                    in: RoundedRectangle(cornerRadius: 12)
+                                )
+                                .accessibilityHidden(true)
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(companion.label)
-                                .font(.body)
+                            // ラベルと説明
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(type.label)
+                                    .font(.body)
+                                    .fontWeight(.medium)
+                                    .foregroundStyle(.black)
 
-                            Text(companion.descriptionText)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                Text(type.descriptionText)
+                                    .font(.caption)
+                                    .foregroundStyle(.black)
+                            }
+
+                            Spacer()
+
+                            // ラジオボタン
+                            radioButton(isSelected: isSelected)
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
+                        .background(
+                            isSelected
+                                ? Color(hex: 0xF0F7FF)
+                                : Color.white
+                        )
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(type.label) — \(type.descriptionText)")
+                    .accessibilityValue(isSelected ? "選択中" : "未選択")
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
+
+                    // 区切り線（最後以外）
+                    if index < displayMobilityTypes.count - 1 {
+                        Divider()
+                            .padding(.leading, 74)
                     }
                 }
-                .ensureMinimumTapTarget()
-                .accessibilityLabel("\(companion.label) — \(companion.descriptionText)")
-                .accessibilityValue(viewModel.selectedCompanions.contains(companion) ? "オン" : "オフ")
             }
-        } header: {
-            sectionHeader(title: "同行者", systemImage: "person.2")
-        } footer: {
-            Text("同行者に合わせて歩行ペースや必要な設備の条件を調整します")
-                .font(.caption)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 16))
+            .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 1)
         }
     }
 
-    // MARK: - 最大移動距離セクション
+    // ラジオボタンUI
+    private func radioButton(isSelected: Bool) -> some View {
+        ZStack {
+            Circle()
+                .stroke(isSelected ? Color(hex: 0x007AFF) : Color(.systemGray3), lineWidth: 2)
+                .frame(width: 24, height: 24)
 
-    private var distanceSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 12) {
-                // 距離表示（メイン）
-                HStack(alignment: .firstTextBaseline) {
-                    Text(AccessibilityHelpers.distanceText(meters: viewModel.maxDistanceMeters))
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundStyle(AppColors.textPrimary)
-
-                    Text("—")
-                        .foregroundStyle(.secondary)
-
-                    Text(AccessibilityHelpers.distanceCategory(meters: viewModel.maxDistanceMeters))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel(
-                    "\(AccessibilityHelpers.distanceText(meters: viewModel.maxDistanceMeters))、\(AccessibilityHelpers.distanceCategory(meters: viewModel.maxDistanceMeters))"
-                )
-
-                // スライダー + ステッパーボタン
-                HStack(spacing: 12) {
-                    // -ボタン
-                    Button {
-                        viewModel.maxDistanceMeters = max(100, viewModel.maxDistanceMeters - 100)
-                    } label: {
-                        Image(systemName: "minus")
-                            .font(.body)
-                            .fontWeight(.bold)
-                            .frame(width: 36, height: 36)
-                            .background(Color(.systemGray5), in: Circle())
-                    }
-                    .disabled(viewModel.maxDistanceMeters <= 100)
-                    .accessibilityLabel("距離を100m減らす")
-
-                    Slider(
-                        value: $viewModel.maxDistanceMeters,
-                        in: 100...5000,
-                        step: 100
-                    )
-                    .accessibilityLabel("最大移動距離")
-                    .accessibilityValue(
-                        AccessibilityHelpers.distanceText(meters: viewModel.maxDistanceMeters)
-                    )
-
-                    // +ボタン
-                    Button {
-                        viewModel.maxDistanceMeters = min(5000, viewModel.maxDistanceMeters + 100)
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.body)
-                            .fontWeight(.bold)
-                            .frame(width: 36, height: 36)
-                            .background(Color(.systemGray5), in: Circle())
-                    }
-                    .disabled(viewModel.maxDistanceMeters >= 5000)
-                    .accessibilityLabel("距離を100m増やす")
-                }
-
-                // 目安マーカー
-                HStack {
-                    distanceMarker(label: "300m", sublabel: "短距離")
-                    Spacer()
-                    distanceMarker(label: "1km", sublabel: "中距離")
-                    Spacer()
-                    distanceMarker(label: "3km", sublabel: "長距離")
-                }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
+            if isSelected {
+                Circle()
+                    .fill(Color(hex: 0x007AFF))
+                    .frame(width: 14, height: 14)
             }
-            .padding(.vertical, 4)
-        } header: {
-            sectionHeader(title: "最大移動距離", systemImage: "map")
-        } footer: {
-            Text("一度に移動できる最大距離です。ルートの候補をこの距離内で絞り込みます")
-                .font(.caption)
+        }
+        .accessibilityHidden(true)
+    }
+
+    // 移動手段ごとのカラー値
+    private func mobilityColorValue(for type: MobilityType) -> UInt {
+        switch type {
+        case .wheelchair: return 0x007AFF
+        case .stroller: return 0x5856D6
+        case .cane: return 0xFF9500
+        case .walk: return 0x34C759
+        case .other: return 0x8E8E93
         }
     }
 
-    // 距離マーカーの表示用ヘルパー
-    private func distanceMarker(label: String, sublabel: String) -> some View {
-        VStack(spacing: 2) {
-            Text("|")
-                .font(.caption2)
-                .foregroundStyle(Color(.systemGray3))
-            Text(label)
-                .fontWeight(.medium)
-            Text(sublabel)
-        }
-    }
-
-    // MARK: - 回避条件セクション
+    // MARK: - 3. 回避したい条件セクション
 
     private var avoidSection: some View {
-        Section {
-            // グリッド表示（Expo版に合わせる）
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("回避したい条件")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(.black)
+                .padding(.leading, 4)
+
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                 ForEach(AvoidCondition.allCases) { condition in
                     let isSelected = viewModel.selectedAvoidConditions.contains(condition)
+
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             viewModel.toggleAvoidCondition(condition)
                         }
                     } label: {
-                        VStack(spacing: 6) {
+                        VStack(spacing: 8) {
                             Text(condition.emoji)
-                                .font(.title2)
+                                .font(.system(size: 28))
+
                             Text(condition.label)
                                 .font(.subheadline)
                                 .fontWeight(.medium)
+                                .foregroundStyle(.black)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                        .padding(.vertical, 18)
                         .background(
-                            isSelected ? Color.red.opacity(0.1) : Color(.systemGray6),
-                            in: RoundedRectangle(cornerRadius: 12)
+                            isSelected
+                                ? Color(hex: 0xFFF5F5)
+                                : Color.white,
+                            in: RoundedRectangle(cornerRadius: 14)
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(isSelected ? Color.red.opacity(0.5) : Color.clear, lineWidth: 2)
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(
+                                    isSelected ? Color(hex: 0xFF3B30) : Color(.systemGray5),
+                                    lineWidth: isSelected ? 2 : 1
+                                )
                         )
-                        .foregroundStyle(isSelected ? .red : .primary)
                     }
-                    .accessibilityLabel("\(condition.label)")
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(condition.label)
                     .accessibilityValue(isSelected ? "回避する" : "回避しない")
                 }
             }
-        } header: {
-            sectionHeader(title: "回避したい条件", systemImage: "exclamationmark.triangle")
-        } footer: {
-            Text("ルート検索時にこれらの条件を含むルートを避けて提案します")
-                .font(.caption)
         }
     }
 
-    // MARK: - 希望条件セクション
+    // MARK: - 4. 優先したい条件セクション
 
     private var preferSection: some View {
-        Section {
-            // グリッド表示（Expo版に合わせる）
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("優先したい条件")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(.black)
+                .padding(.leading, 4)
+
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                 ForEach(PreferCondition.allCases) { condition in
                     let isSelected = viewModel.selectedPreferConditions.contains(condition)
+
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             viewModel.togglePreferCondition(condition)
                         }
                     } label: {
-                        VStack(spacing: 6) {
+                        VStack(spacing: 8) {
                             Text(condition.emoji)
-                                .font(.title2)
+                                .font(.system(size: 28))
+
                             Text(condition.label)
                                 .font(.subheadline)
                                 .fontWeight(.medium)
+                                .foregroundStyle(.black)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                        .padding(.vertical, 18)
                         .background(
-                            isSelected ? Color.green.opacity(0.1) : Color(.systemGray6),
-                            in: RoundedRectangle(cornerRadius: 12)
+                            isSelected
+                                ? Color(hex: 0xF2FFF5)
+                                : Color.white,
+                            in: RoundedRectangle(cornerRadius: 14)
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(isSelected ? Color.green.opacity(0.5) : Color.clear, lineWidth: 2)
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(
+                                    isSelected ? Color(hex: 0x34C759) : Color(.systemGray5),
+                                    lineWidth: isSelected ? 2 : 1
+                                )
                         )
-                        .foregroundStyle(isSelected ? .green : .primary)
                     }
-                    .accessibilityLabel("\(condition.label)")
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(condition.label)
                     .accessibilityValue(isSelected ? "希望する" : "希望しない")
                 }
             }
-        } header: {
-            sectionHeader(title: "希望条件", systemImage: "star")
-        } footer: {
-            Text("これらの設備や条件があるルートを優先的に提案します")
-                .font(.caption)
         }
     }
 
-    // MARK: - バリデーション警告セクション
+    // MARK: - 5. 最大移動距離カード
 
-    private func validationWarningSection(message: String) -> some View {
-        Section {
-            HStack(spacing: 12) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(AppColors.warningText)
-                    .accessibilityHidden(true)
-
-                Text(message)
+    private var distanceCard: some View {
+        VStack(spacing: 16) {
+            // ラベル
+            HStack {
+                Text("最大移動距離")
                     .font(.subheadline)
-                    .foregroundStyle(AppColors.warningText)
+                    .foregroundStyle(.black)
+                Spacer()
             }
-            .padding(.vertical, 4)
+
+            // 大きな数字表示
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(String(format: "%.1f", viewModel.maxDistanceMeters / 1000))
+                    .font(.system(size: 48, weight: .bold))
+                    .foregroundStyle(.black)
+
+                Text("km")
+                    .font(.system(size: 20))
+                    .foregroundStyle(.black)
+            }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("警告: \(message)")
+            .accessibilityLabel(
+                AccessibilityHelpers.distanceText(meters: viewModel.maxDistanceMeters)
+            )
+
+            // スライダー + −/＋ボタン
+            HStack(spacing: 16) {
+                // −ボタン
+                Button {
+                    viewModel.maxDistanceMeters = max(100, viewModel.maxDistanceMeters - 100)
+                } label: {
+                    Image(systemName: "minus")
+                        .font(.body)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color(hex: 0x007AFF))
+                        .frame(width: 44, height: 44)
+                        .background(Color(.systemGray5), in: Circle())
+                }
+                .disabled(viewModel.maxDistanceMeters <= 100)
+                .accessibilityLabel("距離を100m減らす")
+
+                Slider(
+                    value: $viewModel.maxDistanceMeters,
+                    in: 100...5000,
+                    step: 100
+                )
+                .tint(Color(hex: 0x007AFF))
+                .accessibilityLabel("最大移動距離")
+                .accessibilityValue(
+                    AccessibilityHelpers.distanceText(meters: viewModel.maxDistanceMeters)
+                )
+
+                // ＋ボタン
+                Button {
+                    viewModel.maxDistanceMeters = min(5000, viewModel.maxDistanceMeters + 100)
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.body)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color(hex: 0x007AFF))
+                        .frame(width: 44, height: 44)
+                        .background(Color(.systemGray5), in: Circle())
+                }
+                .disabled(viewModel.maxDistanceMeters >= 5000)
+                .accessibilityLabel("距離を100m増やす")
+            }
         }
+        .padding(20)
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 20))
+        .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
     }
 
-    // MARK: - 保存ボタンセクション
+    // MARK: - 6. 固定保存ボタン
 
-    private var saveSection: some View {
-        Section {
+    private var saveButton: some View {
+        VStack(spacing: 0) {
+            Divider()
+
             Button {
                 Task {
                     await viewModel.saveProfile()
+                    if viewModel.saveSucceeded {
+                        showSaveAlert = true
+                    }
                 }
             } label: {
                 HStack {
                     Spacer()
                     if viewModel.isSaving {
                         ProgressView()
+                            .tint(.white)
                             .padding(.trailing, 8)
                     }
-                    Text("保存する")
+                    Text("設定を保存する")
+                        .font(.body)
                         .fontWeight(.bold)
+                        .foregroundStyle(.white)
                     Spacer()
                 }
-                .ensureMinimumTapTarget()
+                .frame(height: 56)
+                .background(Color(hex: 0x007AFF), in: RoundedRectangle(cornerRadius: 16))
             }
             .disabled(viewModel.isSaving)
-            .accessibilityLabel("プロファイルを保存")
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .accessibilityLabel("設定を保存する")
             .accessibilityHint("現在の設定内容を保存します")
         }
+        .background(Color.white.opacity(0.95))
     }
+}
 
-    // MARK: - 保存成功オーバーレイ
+// MARK: - Color hex初期化ヘルパー
 
-    private var saveSuccessOverlay: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 56))
-                .foregroundStyle(AppColors.success)
-                .symbolEffect(.bounce, value: viewModel.showSaveSuccessOverlay)
-
-            Text("保存しました")
-                .font(.headline)
-                .foregroundStyle(AppColors.textPrimary)
-        }
-        .padding(32)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(.ultraThinMaterial)
-                .shadow(color: AppColors.cardShadow, radius: 16)
+private extension Color {
+    init(hex: UInt, opacity: Double = 1.0) {
+        self.init(
+            red: Double((hex >> 16) & 0xFF) / 255,
+            green: Double((hex >> 8) & 0xFF) / 255,
+            blue: Double(hex & 0xFF) / 255,
+            opacity: opacity
         )
-        .transition(.scale.combined(with: .opacity))
-        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: viewModel.showSaveSuccessOverlay)
-        .accessibilityLabel("保存が完了しました")
-        .accessibilityAddTraits(.isStaticText)
-    }
-
-    // MARK: - アプリ情報セクション
-
-    private var appInfoSection: some View {
-        Section {
-            HStack {
-                Text("バージョン")
-                Spacer()
-                Text(AppConfig.displayVersion)
-                    .foregroundStyle(.secondary)
-            }
-            if AppConfig.isDebug {
-                HStack {
-                    Text("環境")
-                    Spacer()
-                    Text(AppConfig.environment.displayName)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        } header: {
-            Text("アプリ情報")
-        }
-    }
-
-    // MARK: - 共通ヘルパー
-
-    // セクションヘッダー（アイコン付き）
-    private func sectionHeader(title: String, systemImage: String) -> some View {
-        Label(title, systemImage: systemImage)
     }
 }

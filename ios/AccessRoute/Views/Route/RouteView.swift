@@ -93,7 +93,7 @@ struct RouteView: View {
             fallbackPolyline
             routeMarkers
         }
-        .mapStyle(.standard(pointsOfInterest: .including([.publicTransport, .restroom])))
+        .mapStyle(.standard(pointsOfInterest: .excludingAll))
         .mapControls {
             MapUserLocationButton()
             MapCompass()
@@ -205,7 +205,7 @@ struct RouteView: View {
             )) {
                 ZStack {
                     Circle()
-                        .fill(AccessibilityHelpers.scoreColor(for: spot.accessibilityScore))
+                        .fill(spot.category.markerColor)
                         .frame(width: 26, height: 26)
                         .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
                     Image(systemName: spot.category.iconName)

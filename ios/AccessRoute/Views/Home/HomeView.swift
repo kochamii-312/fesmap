@@ -6,14 +6,15 @@ struct HomeView: View {
     @StateObject private var viewModel = HomeViewModel()
     @StateObject private var locationManager = LocationManager()
     @State private var navigateToRoute = false
-    // 初期位置：溝の口駅
-    @State private var cameraPosition: MapCameraPosition = .region(
+    @State private var hasMovedToUserLocation = false
+    // 初期位置：ユーザーの現在地に自動追従
+    @State private var cameraPosition: MapCameraPosition = .userLocation(fallback: .region(
         MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: 35.6006, longitude: 139.6107),
+            center: CLLocationCoordinate2D(latitude: 35.6812, longitude: 139.7671),
             latitudinalMeters: 1000,
             longitudinalMeters: 1000
         )
-    )
+    ))
 
     var body: some View {
         NavigationStack {
@@ -36,22 +37,35 @@ struct HomeView: View {
             }
             .onChange(of: locationManager.currentLocation?.latitude) { _, _ in
                 let loc = locationManager.locationOrDefault
+                // 初回のGPS取得時に現在地にズーム
+                if !hasMovedToUserLocation, locationManager.currentLocation != nil {
+                    hasMovedToUserLocation = true
+                    withAnimation(.easeInOut(duration: 0.5)) {
+                        cameraPosition = .region(MKCoordinateRegion(
+                            center: loc,
+                            latitudinalMeters: 800,
+                            longitudinalMeters: 800
+                        ))
+                    }
+                }
                 Task {
                     await viewModel.searchNearbySpots(lat: loc.latitude, lng: loc.longitude)
                     await viewModel.updateCurrentAddress(lat: loc.latitude, lng: loc.longitude)
                 }
             }
             .onAppear {
-                let loc = locationManager.locationOrDefault
-                // 初期位置にカメラを移動
-                cameraPosition = .region(MKCoordinateRegion(
-                    center: loc,
-                    latitudinalMeters: 1000,
-                    longitudinalMeters: 1000
-                ))
-                Task {
-                    await viewModel.searchNearbySpots(lat: loc.latitude, lng: loc.longitude)
-                    await viewModel.updateCurrentAddress(lat: loc.latitude, lng: loc.longitude)
+                // GPS取得後に onChange で検索されるので、ここではデフォルト位置は使わない
+                // GPSが既に取得済みならそれを使用
+                if let loc = locationManager.currentLocation {
+                    cameraPosition = .region(MKCoordinateRegion(
+                        center: loc,
+                        latitudinalMeters: 800,
+                        longitudinalMeters: 800
+                    ))
+                    Task {
+                        await viewModel.searchNearbySpots(lat: loc.latitude, lng: loc.longitude)
+                        await viewModel.updateCurrentAddress(lat: loc.latitude, lng: loc.longitude)
+                    }
                 }
             }
             .onDisappear {
@@ -69,7 +83,7 @@ struct HomeView: View {
             recommendedSpotAnnotations
             nearbySpotMarkers
         }
-        .mapStyle(.standard(pointsOfInterest: .including([.publicTransport, .restroom])))
+        .mapStyle(.standard(pointsOfInterest: .excludingAll))
         .mapControls {
             MapUserLocationButton()
             MapCompass()
@@ -78,7 +92,7 @@ struct HomeView: View {
         .accessibilityLabel("地図")
     }
 
-    // おすすめスポットマーカー
+    // おすすめスポットマーカー（カテゴリ別色分け）
     @MapContentBuilder
     private var recommendedSpotAnnotations: some MapContent {
         ForEach(viewModel.recommendedNearbySpots) { spot in
@@ -88,7 +102,7 @@ struct HomeView: View {
             )) {
                 ZStack {
                     Circle()
-                        .fill(AccessibilityHelpers.scoreColor(for: spot.accessibilityScore))
+                        .fill(spot.category.markerColor)
                         .frame(width: 30, height: 30)
                         .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
                     Image(systemName: spot.category.iconName)
@@ -100,18 +114,25 @@ struct HomeView: View {
         }
     }
 
-    // 周辺スポットマーカー
+    // 周辺スポットマーカー（カテゴリ別色分け）
     @MapContentBuilder
     private var nearbySpotMarkers: some MapContent {
         ForEach(viewModel.nearbySpots) { spot in
-            Marker(
-                spot.name,
-                coordinate: CLLocationCoordinate2D(
-                    latitude: spot.location.lat,
-                    longitude: spot.location.lng
-                )
-            )
-            .tint(AccessibilityHelpers.scoreColor(for: spot.accessibilityScore))
+            Annotation(spot.name, coordinate: CLLocationCoordinate2D(
+                latitude: spot.location.lat,
+                longitude: spot.location.lng
+            )) {
+                ZStack {
+                    Circle()
+                        .fill(spot.category.markerColor)
+                        .frame(width: 26, height: 26)
+                        .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+                    Image(systemName: spot.category.iconName)
+                        .font(.system(size: 11))
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white)
+                }
+            }
         }
     }
 

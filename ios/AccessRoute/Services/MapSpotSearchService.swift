@@ -20,8 +20,9 @@ enum MapSpotSearchService {
             queries = [("トイレ", SpotCategory.restroom)]
         }
 
-        // 各キーワードで並列検索
+        // Apple Maps + YOLP で並列検索
         await withTaskGroup(of: [SpotSummary].self) { group in
+            // Apple Maps（MKLocalSearch）
             for (query, category) in queries {
                 group.addTask {
                     await searchMapKit(
@@ -32,19 +33,44 @@ enum MapSpotSearchService {
                     )
                 }
             }
+
+            // Yahoo! YOLP（日本のローカルビジネスに強い）
+            for (query, category) in queries {
+                group.addTask {
+                    await searchYOLP(
+                        query: query,
+                        category: category,
+                        near: coordinate,
+                        radius: radius
+                    )
+                }
+            }
+
             for await spots in group {
                 allSpots.append(contentsOf: spots)
             }
         }
 
-        // 重複除去（名前で）
-        var seen = Set<String>()
-        allSpots = allSpots.filter { spot in
-            let key = "\(spot.name)_\(spot.location.lat)"
-            if seen.contains(key) { return false }
-            seen.insert(key)
-            return true
+        // 重複除去（名前の類似度 + 近接距離で判定）
+        var uniqueSpots: [SpotSummary] = []
+        for spot in allSpots {
+            let isDuplicate = uniqueSpots.contains { existing in
+                // 50m以内で名前が部分一致するものは重複
+                let dist = TransitRouteService.haversineDistance(
+                    from: CLLocationCoordinate2D(latitude: spot.location.lat, longitude: spot.location.lng),
+                    to: CLLocationCoordinate2D(latitude: existing.location.lat, longitude: existing.location.lng)
+                )
+                if dist > 50 { return false }
+                // 名前の先頭3文字が一致、または一方が他方を含む
+                let a = spot.name.prefix(3)
+                let b = existing.name.prefix(3)
+                return a == b || spot.name.contains(existing.name) || existing.name.contains(spot.name)
+            }
+            if !isDuplicate {
+                uniqueSpots.append(spot)
+            }
         }
+        allSpots = uniqueSpots
 
         // スコアリング
         let scored = allSpots.map { spot in
@@ -74,10 +100,14 @@ enum MapSpotSearchService {
     ) -> [(String, SpotCategory)] {
         var queries: [(String, SpotCategory)] = []
 
+        // カフェとトイレは常に検索（実在する施設を表示）
+        queries.append(("カフェ", .cafe))
+        queries.append(("トイレ", .restroom))
+
         for prefer in needs.preferConditions {
             switch prefer {
             case .cafe:
-                queries.append(("カフェ", .cafe))
+                break // 上で追加済み
             case .restroom:
                 queries.append(("多目的トイレ", .restroom))
                 queries.append(("バリアフリートイレ", .restroom))
@@ -148,6 +178,103 @@ enum MapSpotSearchService {
                     distanceFromRoute: distance
                 )
             }
+        } catch {
+            return []
+        }
+    }
+
+    // MARK: - Yahoo! YOLP 検索
+
+    // YOLP レスポンス
+    private struct YOLPResponse: Codable {
+        let Feature: [YOLPFeature]?
+    }
+
+    private struct YOLPFeature: Codable {
+        let Name: String?
+        let Geometry: YOLPGeometry?
+        let Property: YOLPProperty?
+    }
+
+    private struct YOLPGeometry: Codable {
+        let Coordinates: String? // "経度,緯度"
+    }
+
+    private struct YOLPProperty: Codable {
+        let Address: String?
+        let Tel1: String?
+        let Genre: [YOLPGenre]?
+        let Gid: String?
+    }
+
+    private struct YOLPGenre: Codable {
+        let Name: String?
+    }
+
+    // YOLP でスポットを検索
+    private static func searchYOLP(
+        query: String,
+        category: SpotCategory,
+        near coordinate: CLLocationCoordinate2D,
+        radius: Double
+    ) async -> [SpotSummary] {
+        let appId = AppConfig.yolpAppId
+        guard !appId.isEmpty else { return [] }
+
+        guard var components = URLComponents(
+            string: "https://map.yahooapis.jp/search/local/V1/localSearch"
+        ) else { return [] }
+
+        let distKm = min(radius / 1000.0, 50.0)
+
+        components.queryItems = [
+            URLQueryItem(name: "appid", value: appId),
+            URLQueryItem(name: "lat", value: String(coordinate.latitude)),
+            URLQueryItem(name: "lon", value: String(coordinate.longitude)),
+            URLQueryItem(name: "dist", value: String(distKm)),
+            URLQueryItem(name: "query", value: query),
+            URLQueryItem(name: "results", value: "5"),
+            URLQueryItem(name: "sort", value: "dist"),
+            URLQueryItem(name: "output", value: "json"),
+        ]
+
+        guard let url = components.url else { return [] }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 10
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else { return [] }
+
+            let yolpResponse = try JSONDecoder().decode(YOLPResponse.self, from: data)
+
+            return yolpResponse.Feature?.compactMap { feature -> SpotSummary? in
+                guard let name = feature.Name,
+                      let coordString = feature.Geometry?.Coordinates else { return nil }
+
+                let parts = coordString.split(separator: ",").compactMap { Double($0) }
+                guard parts.count == 2 else { return nil }
+                let lng = parts[0]
+                let lat = parts[1]
+
+                let distance = TransitRouteService.haversineDistance(
+                    from: coordinate,
+                    to: CLLocationCoordinate2D(latitude: lat, longitude: lng)
+                )
+                guard distance <= radius else { return nil }
+
+                return SpotSummary(
+                    spotId: "yolp_\(feature.Property?.Gid ?? UUID().uuidString.prefix(8).description)",
+                    name: name,
+                    category: category,
+                    location: LatLng(lat: lat, lng: lng),
+                    accessibilityScore: 70,
+                    distanceFromRoute: distance
+                )
+            } ?? []
         } catch {
             return []
         }

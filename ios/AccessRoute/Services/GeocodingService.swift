@@ -1,8 +1,9 @@
 import Foundation
 import CoreLocation
+import MapKit
 
 // ジオコーディングサービス
-// 4段フォールバック: 既知地名 → キャッシュ → Backend API → Nominatim
+// 5段フォールバック: 既知地名 → キャッシュ → Backend API → Nominatim → MKLocalSearch
 actor GeocodingService {
     static let shared = GeocodingService()
 
@@ -151,6 +152,12 @@ actor GeocodingService {
             return result
         }
 
+        // フォールバック: MKLocalSearch（Apple Maps）で検索
+        if let result = await geocodeWithMapKit(trimmed) {
+            geocodeCache[trimmed] = result
+            return result
+        }
+
         // 部分一致で検索を試みる
         if let match = findPartialMatch(trimmed) {
             return match
@@ -236,6 +243,27 @@ actor GeocodingService {
             return nil
         }
         return manager.location?.coordinate
+    }
+
+    // MKLocalSearch（Apple Maps）でジオコーディング
+    private func geocodeWithMapKit(_ placeName: String) async -> LatLng? {
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = placeName
+        request.region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 35.68, longitude: 139.77),
+            latitudinalMeters: 100_000,
+            longitudinalMeters: 100_000
+        )
+
+        let search = MKLocalSearch(request: request)
+        do {
+            let response = try await search.start()
+            guard let item = response.mapItems.first else { return nil }
+            let coord = item.placemark.coordinate
+            return LatLng(lat: coord.latitude, lng: coord.longitude)
+        } catch {
+            return nil
+        }
     }
 
     // Nominatimでジオコーディング
