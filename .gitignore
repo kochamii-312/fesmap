@@ -5,6 +5,9 @@ backend/functions/.env
 # Dependencies
 node_modules/
 backend/functions/node_modules/
+.venv/
+ai-server/.venv/
+ai-server/.env
 
 # Xcode
 ios/AccessRoute.xcodeproj/
