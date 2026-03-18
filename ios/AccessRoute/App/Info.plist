@@ -2,52 +2,42 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- 位置情報使用理由（使用中のみ） -->
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>現在地からのルート検索に使用します</string>
-
-	<!-- App Transport Security -->
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
-	</dict>
-
-	<!-- バージョン情報 -->
+	<key>CFBundleDisplayName</key>
+	<string>AccessRoute</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.0.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
-
-	<!-- Bundle ID -->
-	<key>CFBundleIdentifier</key>
-	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-
-	<!-- API Keys -->
-	<key>GOOGLE_MAPS_API_KEY</key>
-	<string>$(GOOGLE_MAPS_API_KEY)</string>
 	<key>FIREBASE_API_KEY</key>
 	<string>$(FIREBASE_API_KEY)</string>
-
-	<!-- 実行ファイル名 -->
-	<key>CFBundleExecutable</key>
-	<string>$(EXECUTABLE_NAME)</string>
-
-	<!-- Bundle名 -->
-	<key>CFBundleName</key>
-	<string>$(PRODUCT_NAME)</string>
-
-	<!-- パッケージタイプ -->
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-
-	<!-- アプリ表示名 -->
-	<key>CFBundleDisplayName</key>
-	<string>AccessRoute</string>
-
-	<!-- 対応デバイスの向き -->
+	<key>GOOGLE_MAPS_API_KEY</key>
+	<string>$(GOOGLE_MAPS_API_KEY)</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>現在地からのルート検索に使用します</string>
+	<key>UIAccessibilityIsVoiceOverRunning</key>
+	<true/>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchScreenBackground</string>
+		<key>UIImageName</key>
+		<string>LaunchIcon</string>
+	</dict>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
@@ -58,22 +48,7 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-
-	<!-- LaunchScreen設定 -->
-	<key>UILaunchScreen</key>
-	<dict>
-		<key>UIColorName</key>
-		<string>LaunchScreenBackground</string>
-		<key>UIImageName</key>
-		<string>LaunchIcon</string>
-	</dict>
-
-	<!-- ダークモード対応 -->
 	<key>UIUserInterfaceStyle</key>
 	<string>Automatic</string>
-
-	<!-- アクセシビリティ -->
-	<key>UIAccessibilityIsVoiceOverRunning</key>
-	<true/>
 </dict>
 </plist>

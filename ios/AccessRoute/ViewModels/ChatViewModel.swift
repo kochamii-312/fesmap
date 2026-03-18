@@ -41,7 +41,7 @@ final class ChatViewModel: ObservableObject {
 
         messages.append(AppChatMessage(
             role: .assistant,
-            content: "行きたい場所について、自由に入力してください。\n例：「静かで桜が見れる場所」「車いすで入れるカフェ」"
+            content: "今日は何がしたい？\n例：「静かで桜が見れる場所」「車いすで入れるカフェ」"
         ))
     }
 
@@ -100,7 +100,7 @@ final class ChatViewModel: ObservableObject {
                 if allSpots.isEmpty {
                     self.messages.append(AppChatMessage(
                         role: .assistant,
-                        content: "「\(messageText)」に関連するスポットが見つかりませんでした。別のキーワードで試してみてください。",
+                        content: "「\(messageText)」に関連するスポットが見つかりませんでした。別のキーワードで試してみてください！",
                         followupQuestion: "近くのカフェを探して"
                     ))
                 } else {
@@ -108,7 +108,7 @@ final class ChatViewModel: ObservableObject {
                     let spotIds = allSpots.map(\.id)
                     self.messages.append(AppChatMessage(
                         role: .assistant,
-                        content: "「\(messageText)」に関連するスポットが\(allSpots.count)件見つかりました。\n\n\(spotNames) などがおすすめです。",
+                        content: "「\(messageText)」に関連するスポットが\(allSpots.count)件見つかりました。\n\n\(spotNames) などがおすすめです！",
                         spots: allSpots,
                         followupQuestion: self.generateFollowup(for: messageText),
                         showOnMapAction: ShowOnMapAction(type: "show", spotIds: spotIds)
@@ -124,7 +124,7 @@ final class ChatViewModel: ObservableObject {
         appState.spotsToShowOnMap = spots
         messages.append(AppChatMessage(
             role: .assistant,
-            content: "地図にスポットを表示しました。ホームタブで確認してください。"
+            content: "地図にスポットを表示しました！ホームタブで確認してください。"
         ))
     }
 
