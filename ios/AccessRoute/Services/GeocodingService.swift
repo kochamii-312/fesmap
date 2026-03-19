@@ -247,23 +247,28 @@ actor GeocodingService {
 
     // MKLocalSearch（Apple Maps）でジオコーディング
     private nonisolated func geocodeWithMapKit(_ placeName: String) async -> LatLng? {
-        let request = MKLocalSearch.Request()
-        request.naturalLanguageQuery = placeName
-        request.region = MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: 35.68, longitude: 139.77),
-            latitudinalMeters: 100_000,
-            longitudinalMeters: 100_000
-        )
-
-        let search = MKLocalSearch(request: request)
-        do {
-            let response = try await search.start()
-            guard let item = response.mapItems.first else { return nil }
-            let coord = item.placemark.coordinate
-            return LatLng(lat: coord.latitude, lng: coord.longitude)
-        } catch {
-            return nil
+        // MKLocalSearch.ResponseはSendable非準拠のため、
+        // @Sendableクロージャ内で検索→座標抽出まで完結させる
+        let coords: (Double, Double)? = await withCheckedContinuation { continuation in
+            let request = MKLocalSearch.Request()
+            request.naturalLanguageQuery = placeName
+            request.region = MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: 35.68, longitude: 139.77),
+                latitudinalMeters: 100_000,
+                longitudinalMeters: 100_000
+            )
+            let search = MKLocalSearch(request: request)
+            search.start { response, _ in
+                guard let item = response?.mapItems.first else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                let coord = item.placemark.coordinate
+                continuation.resume(returning: (coord.latitude, coord.longitude))
+            }
         }
+        guard let (lat, lng) = coords else { return nil }
+        return LatLng(lat: lat, lng: lng)
     }
 
     // Nominatimでジオコーディング
