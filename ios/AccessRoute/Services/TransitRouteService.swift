@@ -763,8 +763,8 @@ enum TransitRouteService {
         request.transportType = .walking
 
         let directions = MKDirections(request: request)
-        // MKDirections.Responseはnon-Sendableのためコールバック版を使用
-        return try await withCheckedThrowingContinuation { continuation in
+        // MKRoute はnon-SendableのためUncheckedSendableBoxで包んで渡す
+        let box: UncheckedSendableBox<MKRoute> = try await withCheckedThrowingContinuation { continuation in
             directions.calculate { response, error in
                 if let error = error {
                     continuation.resume(throwing: TransitError.walkingRouteUnavailable(
@@ -776,9 +776,10 @@ enum TransitRouteService {
                     continuation.resume(throwing: TransitError.noRouteFound)
                     return
                 }
-                continuation.resume(returning: route)
+                continuation.resume(returning: UncheckedSendableBox(value: route))
             }
         }
+        return box.value
     }
 
     // MARK: - 距離計算

@@ -2,6 +2,11 @@ import Foundation
 @preconcurrency import MapKit
 import SwiftUI
 
+// non-Sendable型をcontinuation経由で安全に渡すためのラッパー
+struct UncheckedSendableBox<T>: @unchecked Sendable {
+    let value: T
+}
+
 // ルート検索画面のViewModel
 @MainActor
 final class RouteViewModel: ObservableObject {
@@ -124,15 +129,16 @@ final class RouteViewModel: ObservableObject {
 
         let directions = MKDirections(request: request)
         // MKDirections.Responseはnon-Sendableのためコールバック版を使用
-        let routes: [MKRoute] = try await withCheckedThrowingContinuation { continuation in
+        let box: UncheckedSendableBox<[MKRoute]> = try await withCheckedThrowingContinuation { continuation in
             directions.calculate { response, error in
                 if let error = error {
                     continuation.resume(throwing: error)
                     return
                 }
-                continuation.resume(returning: response?.routes ?? [])
+                continuation.resume(returning: UncheckedSendableBox(value: response?.routes ?? []))
             }
         }
+        let routes = box.value
 
         mkRoutes = routes
         routeResults = routes.enumerated().map { index, mkRoute in
