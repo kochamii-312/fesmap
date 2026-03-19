@@ -553,18 +553,28 @@ final class ChatViewModel: ObservableObject {
         request.resultTypes = .pointOfInterest
 
         let search = MKLocalSearch(request: request)
+        let searchReason = reason
+
+        // MKLocalSearch.Responseはnon-Sendableのためコールバック版を使用
+        let items: [(name: String, lat: Double, lng: Double)] = await withCheckedContinuation { continuation in
+            search.start { response, _ in
+                let results = response?.mapItems.prefix(5).compactMap { item -> (String, Double, Double)? in
+                    guard let name = item.name else { return nil }
+                    let c = item.placemark.coordinate
+                    return (name, c.latitude, c.longitude)
+                } ?? []
+                continuation.resume(returning: results)
+            }
+        }
 
         do {
-            let response = try await search.start()
-            return response.mapItems.prefix(5).compactMap { item -> RecommendedSpot? in
-                guard let name = item.name else { return nil }
-                let coord = item.placemark.coordinate
-                return RecommendedSpot(
+            return items.map { item in
+                RecommendedSpot(
                     id: UUID().uuidString,
-                    name: name,
-                    reason: reason,
-                    latitude: coord.latitude,
-                    longitude: coord.longitude
+                    name: item.name,
+                    reason: searchReason,
+                    latitude: item.lat,
+                    longitude: item.lng
                 )
             }
         } catch {

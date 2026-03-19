@@ -721,16 +721,26 @@ enum TransitRouteService {
         let directions = MKDirections(request: request)
 
         do {
-            let response = try await directions.calculate()
-            guard let route = response.routes.first else { return nil }
-
-            // MKPolyline から座標配列を抽出
-            let points = route.polyline.points()
-            var coords: [CLLocationCoordinate2D] = []
-            for j in 0..<route.polyline.pointCount {
-                coords.append(points[j].coordinate)
+            // MKDirections.Responseはnon-Sendableのためコールバック版を使用
+            let coords: [CLLocationCoordinate2D] = try await withCheckedThrowingContinuation { continuation in
+                directions.calculate { response, error in
+                    if let error = error {
+                        continuation.resume(throwing: error)
+                        return
+                    }
+                    guard let route = response?.routes.first else {
+                        continuation.resume(returning: [])
+                        return
+                    }
+                    let points = route.polyline.points()
+                    var result: [CLLocationCoordinate2D] = []
+                    for j in 0..<route.polyline.pointCount {
+                        result.append(points[j].coordinate)
+                    }
+                    continuation.resume(returning: result)
+                }
             }
-            return coords
+            return coords.isEmpty ? nil : coords
         } catch {
             return nil
         }
@@ -753,19 +763,22 @@ enum TransitRouteService {
         request.transportType = .walking
 
         let directions = MKDirections(request: request)
-        let response: MKDirections.Response
-        do {
-            response = try await directions.calculate()
-        } catch {
-            throw TransitError.walkingRouteUnavailable(
-                detail: "徒歩ルートの取得に失敗しました: \(error.localizedDescription)"
-            )
+        // MKDirections.Responseはnon-Sendableのためコールバック版を使用
+        return try await withCheckedThrowingContinuation { continuation in
+            directions.calculate { response, error in
+                if let error = error {
+                    continuation.resume(throwing: TransitError.walkingRouteUnavailable(
+                        detail: "徒歩ルートの取得に失敗しました: \(error.localizedDescription)"
+                    ))
+                    return
+                }
+                guard let route = response?.routes.first else {
+                    continuation.resume(throwing: TransitError.noRouteFound)
+                    return
+                }
+                continuation.resume(returning: route)
+            }
         }
-
-        guard let route = response.routes.first else {
-            throw TransitError.noRouteFound
-        }
-        return route
     }
 
     // MARK: - 距離計算

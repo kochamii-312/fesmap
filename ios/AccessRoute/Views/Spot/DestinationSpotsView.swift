@@ -137,16 +137,20 @@ struct SpotListCard: View {
                     )
                     Task {
                         let search = MKLocalSearch(request: request)
-                        if let response = try? await search.start(),
-                           let item = response.mapItems.first {
-                            detail = SpotListDetail(
-                                address: item.placemark.title,
-                                phone: item.phoneNumber,
-                                hours: nil
-                            )
-                        } else {
-                            detail = SpotListDetail(address: nil, phone: nil, hours: nil)
+                        let result: (address: String?, phone: String?) = await withCheckedContinuation { continuation in
+                            search.start { response, _ in
+                                if let item = response?.mapItems.first {
+                                    continuation.resume(returning: (item.placemark.title, item.phoneNumber))
+                                } else {
+                                    continuation.resume(returning: (nil, nil))
+                                }
+                            }
                         }
+                        detail = SpotListDetail(
+                            address: result.address,
+                            phone: result.phone,
+                            hours: nil
+                        )
                     }
                 }
             } label: {

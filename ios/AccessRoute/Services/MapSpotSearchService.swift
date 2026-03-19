@@ -266,32 +266,37 @@ enum MapSpotSearchService {
         request.resultTypes = .pointOfInterest
 
         let search = MKLocalSearch(request: request)
+        let searchCoord = coordinate
+        let searchRadius = radius
+        let searchCategory = category
 
-        do {
-            let response = try await search.start()
-            return response.mapItems.prefix(5).compactMap { item -> SpotSummary? in
-                guard let name = item.name else { return nil }
-                let itemCoord = item.placemark.coordinate
-                let distance = TransitRouteService.haversineDistance(
-                    from: coordinate, to: itemCoord
-                )
-
-                // 半径内のスポットのみ
-                guard distance <= radius else { return nil }
-
-                let isBarrierFree = estimateBarrierFree(for: item, category: category)
-                return SpotSummary(
-                    spotId: stableSpotId(prefix: "mk", lat: itemCoord.latitude, lng: itemCoord.longitude),
-                    name: name,
-                    category: category,
-                    location: LatLng(lat: itemCoord.latitude, lng: itemCoord.longitude),
-                    accessibilityScore: estimateAccessibilityScore(for: item, category: category),
-                    distanceFromRoute: distance,
-                    isBarrierFree: isBarrierFree
-                )
+        // MKLocalSearch.Responseはnon-Sendableのためコールバック版を使用
+        let items: [(name: String, lat: Double, lng: Double)] = await withCheckedContinuation { continuation in
+            search.start { response, _ in
+                let results = response?.mapItems.prefix(5).compactMap { item -> (String, Double, Double)? in
+                    guard let name = item.name else { return nil }
+                    let c = item.placemark.coordinate
+                    return (name, c.latitude, c.longitude)
+                } ?? []
+                continuation.resume(returning: results)
             }
-        } catch {
-            return []
+        }
+
+        return items.compactMap { item -> SpotSummary? in
+            let itemCoord = CLLocationCoordinate2D(latitude: item.lat, longitude: item.lng)
+            let distance = TransitRouteService.haversineDistance(
+                from: searchCoord, to: itemCoord
+            )
+            guard distance <= searchRadius else { return nil }
+
+            return SpotSummary(
+                spotId: stableSpotId(prefix: "mk", lat: item.lat, lng: item.lng),
+                name: item.name,
+                category: searchCategory,
+                location: LatLng(lat: item.lat, lng: item.lng),
+                accessibilityScore: 70,
+                distanceFromRoute: distance
+            )
         }
     }
 

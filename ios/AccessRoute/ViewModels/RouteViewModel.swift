@@ -123,10 +123,19 @@ final class RouteViewModel: ObservableObject {
         request.requestsAlternateRoutes = true
 
         let directions = MKDirections(request: request)
-        let response = try await directions.calculate()
+        // MKDirections.Responseはnon-Sendableのためコールバック版を使用
+        let routes: [MKRoute] = try await withCheckedThrowingContinuation { continuation in
+            directions.calculate { response, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                continuation.resume(returning: response?.routes ?? [])
+            }
+        }
 
-        mkRoutes = response.routes
-        routeResults = response.routes.enumerated().map { index, mkRoute in
+        mkRoutes = routes
+        routeResults = routes.enumerated().map { index, mkRoute in
             convertMKRouteToResult(mkRoute, index: index)
         }
 
