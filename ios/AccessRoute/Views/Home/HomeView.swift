@@ -7,6 +7,7 @@ struct HomeView: View {
     @EnvironmentObject private var appState: AppState // AppStateを注入
     @StateObject private var locationManager = LocationManager()
     @State private var navigateToRoute = false
+    @State private var routeDestCoord: CLLocationCoordinate2D?
     @State private var hasMovedToUserLocation = false
     @State private var showSpotFilter = false
     // 初期位置：ユーザーの現在地に自動追従
@@ -26,7 +27,15 @@ struct HomeView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(isPresented: $navigateToRoute) {
-                RouteView(initialSearchText: viewModel.searchText)
+                RouteView(
+                    initialSearchText: viewModel.searchText,
+                    initialDestCoord: routeDestCoord
+                )
+            }
+            .onChange(of: navigateToRoute) { _, isNavigating in
+                if !isNavigating {
+                    routeDestCoord = nil
+                }
             }
             .onChange(of: viewModel.shouldNavigateToRoute) { _, shouldNavigate in
                 if shouldNavigate {
@@ -102,7 +111,7 @@ struct HomeView: View {
         .accessibilityLabel("地図")
     }
 
-    // AIチャットからの推薦スポットマーカー
+    // AIチャットからの推薦スポットマーカー（タップでルート表示）
     @MapContentBuilder
     private var chatSpotAnnotations: some MapContent {
         ForEach(viewModel.chatRecommendedSpots) { spot in
@@ -112,13 +121,32 @@ struct HomeView: View {
             )) {
                 ZStack {
                     Circle()
-                        .fill(Color.purple) // チャットからのスポットは紫色
-                        .frame(width: 32, height: 32)
+                        .fill(Color.purple)
+                        .frame(width: 36, height: 36)
                         .shadow(color: .black.opacity(0.3), radius: 3, y: 2)
                     Image(systemName: "star.fill")
                         .font(.system(size: 14))
                         .foregroundColor(.white)
                 }
+                .overlay(alignment: .bottomTrailing) {
+                    // ルート案内アイコンバッジ
+                    Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.white)
+                        .padding(3)
+                        .background(Color.blue, in: Circle())
+                        .offset(x: 4, y: 4)
+                }
+                .onTapGesture {
+                    viewModel.searchText = spot.name
+                    routeDestCoord = CLLocationCoordinate2D(
+                        latitude: spot.location.lat,
+                        longitude: spot.location.lng
+                    )
+                    navigateToRoute = true
+                }
+                .accessibilityLabel("\(spot.name)へのルートを表示")
+                .accessibilityHint("タップするとルート検索画面に移動します")
             }
         }
     }

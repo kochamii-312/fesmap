@@ -23,6 +23,9 @@ final class RouteViewModel: ObservableObject {
     // 目的地周辺のおすすめスポット（好みに基づく）
     @Published var destinationSpots: [SpotSummary] = []
 
+    // 事前に確定している目的地座標（チャットスポットから遷移した場合など）
+    var presetDestCoord: CLLocationCoordinate2D?
+
     // 最後に検索した目的地座標
     private var lastDestCoord: CLLocationCoordinate2D?
 
@@ -58,7 +61,15 @@ final class RouteViewModel: ObservableObject {
                     isSearching = false
                     return
                 }
-                let destCoord = try await GeocodingService.shared.geocode(destination)
+
+                // 事前に座標が設定されていればジオコーディングをスキップ
+                let destCoord: LatLng
+                if let preset = presetDestCoord {
+                    destCoord = LatLng(lat: preset.latitude, lng: preset.longitude)
+                    presetDestCoord = nil
+                } else {
+                    destCoord = try await GeocodingService.shared.geocode(destination)
+                }
                 guard !Task.isCancelled else {
                     isSearching = false
                     return

@@ -14,6 +14,7 @@ struct RouteView: View {
         )
     )
     var initialSearchText: String = ""
+    var initialDestCoord: CLLocationCoordinate2D? = nil
 
     var body: some View {
         NavigationStack {
@@ -70,6 +71,7 @@ struct RouteView: View {
                 locationManager.startUpdating()
                 if viewModel.destinationText.isEmpty && !initialSearchText.isEmpty {
                     viewModel.destinationText = initialSearchText
+                    viewModel.presetDestCoord = initialDestCoord
                     Task { await viewModel.searchRouteByName() }
                 }
             }

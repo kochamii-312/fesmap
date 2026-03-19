@@ -48,6 +48,8 @@ final class ChatViewModel: ObservableObject {
     // MARK: - メッセージ送信
 
     private var chatTask: Task<Void, Never>?
+    private var detailTask: Task<Void, Never>?
+    private var activeTaskId: UUID?
 
     func sendMessage() {
         let messageText = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -58,29 +60,37 @@ final class ChatViewModel: ObservableObject {
         isLoading = true
 
         chatTask?.cancel()
+        detailTask?.cancel()
+
+        let taskId = UUID()
+        activeTaskId = taskId
 
         let currentLocation = locationManager.isLocationAvailable
             ? locationManager.currentLocation : nil
 
-        chatTask = Task.detached { [weak self] in
+        chatTask = Task { [weak self] in
             guard let self else { return }
 
-            let queries = await MainActor.run {
-                self.extractSearchQueries(from: messageText)
+            defer {
+                if self.activeTaskId == taskId {
+                    self.isLoading = false
+                }
             }
+
+            let queries = Self.extractSearchQueries(from: messageText)
 
             // メッセージから場所名を検出してジオコーディング
             let detectedLocation = await self.detectLocation(from: messageText)
-            let defaultLoc = await MainActor.run { LocationManager.defaultLocation }
+            let defaultLoc = LocationManager.defaultLocation
             let searchLocation = detectedLocation ?? currentLocation ?? defaultLoc
             let locationLabel = detectedLocation != nil
-                ? self.extractPlaceName(from: messageText) ?? "指定地点"
+                ? Self.extractPlaceName(from: messageText) ?? "指定地点"
                 : "現在地"
             var allSpots: [RecommendedSpot] = []
 
             // バックグラウンドで検索（最大3件のクエリに制限）
             for query in queries.prefix(3) {
-                guard !Task.isCancelled else { break }
+                guard !Task.isCancelled else { return }
                 let spots = await self.searchMapKit(
                     query: query.keyword,
                     near: searchLocation,
@@ -114,32 +124,32 @@ final class ChatViewModel: ObservableObject {
 
             guard !Task.isCancelled else { return }
 
-            // メインスレッドでUI更新
-            await MainActor.run {
-                if allSpots.isEmpty {
-                    self.messages.append(AppChatMessage(
-                        role: .assistant,
-                        content: "\(locationLabel)周辺で「\(messageText)」に関連するスポットが見つかりませんでした。別のキーワードや場所で試してみてください。",
-                        followupQuestion: "渋谷のカフェを探して"
-                    ))
-                } else {
-                    let spotNames = allSpots.prefix(3).map(\.name).joined(separator: "、")
-                    let spotIds = allSpots.map(\.id)
-                    self.messages.append(AppChatMessage(
-                        role: .assistant,
-                        content: "\(locationLabel)周辺で\(allSpots.count)件のスポットが見つかりました。\n\n\(spotNames) などがおすすめです。",
-                        spots: allSpots,
-                        followupQuestion: self.generateFollowup(for: messageText),
-                        showOnMapAction: ShowOnMapAction(type: "show", spotIds: spotIds)
-                    ))
-                }
-                self.isLoading = false
+            // @MainActor クラスなのでそのままUI更新可能
+            if allSpots.isEmpty {
+                self.messages.append(AppChatMessage(
+                    role: .assistant,
+                    content: "\(locationLabel)周辺で「\(messageText)」に関連するスポットが見つかりませんでした。別のキーワードや場所で試してみてください。",
+                    followupQuestion: "渋谷のカフェを探して"
+                ))
+            } else {
+                let spotNames = allSpots.prefix(3).map(\.name).joined(separator: "、")
+                let spotIds = allSpots.map(\.id)
+                self.messages.append(AppChatMessage(
+                    role: .assistant,
+                    content: "\(locationLabel)周辺で\(allSpots.count)件のスポットが見つかりました。\n\n\(spotNames) などがおすすめです。",
+                    spots: allSpots,
+                    followupQuestion: Self.generateFollowup(for: messageText),
+                    showOnMapAction: ShowOnMapAction(type: "show", spotIds: spotIds)
+                ))
             }
         }
     }
 
     // スポットの詳細を取得してチャットに表示
     func fetchSpotDetail(spot: RecommendedSpot) {
+        // 前の詳細取得タスクをキャンセル
+        detailTask?.cancel()
+
         // ローディングメッセージ
         messages.append(AppChatMessage(
             role: .assistant,
@@ -147,8 +157,17 @@ final class ChatViewModel: ObservableObject {
         ))
         isLoading = true
 
-        Task.detached { [weak self] in
+        let taskId = UUID()
+        activeTaskId = taskId
+
+        detailTask = Task { [weak self] in
             guard let self else { return }
+
+            defer {
+                if self.activeTaskId == taskId {
+                    self.isLoading = false
+                }
+            }
 
             let coord = CLLocationCoordinate2D(
                 latitude: spot.latitude, longitude: spot.longitude
@@ -161,63 +180,60 @@ final class ChatViewModel: ObservableObject {
 
             guard !Task.isCancelled else { return }
 
-            await MainActor.run {
-                // ローディングメッセージを削除
-                if let lastIdx = self.messages.indices.last,
-                   self.messages[lastIdx].content.contains("調べています") {
-                    self.messages.remove(at: lastIdx)
+            // ローディングメッセージを削除（IDではなくスポット名で特定）
+            let loadingText = "「\(spot.name)」の詳細を調べています..."
+            if let idx = self.messages.lastIndex(where: { $0.content == loadingText }) {
+                self.messages.remove(at: idx)
+            }
+
+            if let gd = detail {
+                // 詳細情報をAIが調べた形で表示
+                var info = "📍 **\(spot.name)** の詳細情報\n\n"
+
+                if let cuisine = gd.cuisineType {
+                    info += "🍽️ ジャンル: \(cuisine)\n"
+                }
+                if let rating = gd.rating {
+                    info += "⭐ 評価: \(String(format: "%.1f", rating))\n"
+                }
+                if let price = GooglePlacesService.priceLevelText(gd.priceLevel) {
+                    info += "💰 価格帯: \(price)\n"
+                }
+                if let openNow = gd.openNow {
+                    info += openNow ? "🟢 現在営業中\n" : "🔴 現在営業時間外\n"
+                }
+                if let wheelchair = gd.isWheelchairAccessible {
+                    info += wheelchair ? "♿ 車椅子対応入口あり\n" : "⚠️ 車椅子対応入口なし\n"
+                }
+                if let address = gd.address {
+                    info += "📮 \(address)\n"
+                }
+                if let phone = gd.phone {
+                    info += "📞 \(phone)\n"
+                }
+                if !gd.openingHours.isEmpty {
+                    info += "\n🕐 営業時間:\n"
+                    for hours in gd.openingHours {
+                        info += "  \(hours)\n"
+                    }
+                }
+                if let review = gd.review {
+                    info += "\n💬 レビュー:\n\(review)..."
                 }
 
-                if let gd = detail {
-                    // 詳細情報をAIが調べた形で表示
-                    var info = "📍 **\(spot.name)** の詳細情報\n\n"
-
-                    if let cuisine = gd.cuisineType {
-                        info += "🍽️ ジャンル: \(cuisine)\n"
-                    }
-                    if let rating = gd.rating {
-                        info += "⭐ 評価: \(String(format: "%.1f", rating))\n"
-                    }
-                    if let price = GooglePlacesService.priceLevelText(gd.priceLevel) {
-                        info += "💰 価格帯: \(price)\n"
-                    }
-                    if let openNow = gd.openNow {
-                        info += openNow ? "🟢 現在営業中\n" : "🔴 現在営業時間外\n"
-                    }
-                    if let wheelchair = gd.isWheelchairAccessible {
-                        info += wheelchair ? "♿ 車椅子対応入口あり\n" : "⚠️ 車椅子対応入口なし\n"
-                    }
-                    if let address = gd.address {
-                        info += "📮 \(address)\n"
-                    }
-                    if let phone = gd.phone {
-                        info += "📞 \(phone)\n"
-                    }
-                    if !gd.openingHours.isEmpty {
-                        info += "\n🕐 営業時間:\n"
-                        for hours in gd.openingHours {
-                            info += "  \(hours)\n"
-                        }
-                    }
-                    if let review = gd.review {
-                        info += "\n💬 レビュー:\n\(review)..."
-                    }
-
-                    self.messages.append(AppChatMessage(
-                        role: .assistant,
-                        content: info,
-                        spots: [spot],
-                        followupQuestion: "このお店への行き方を教えて",
-                        showOnMapAction: ShowOnMapAction(type: "show", spotIds: [spot.id])
-                    ))
-                } else {
-                    self.messages.append(AppChatMessage(
-                        role: .assistant,
-                        content: "「\(spot.name)」の詳細情報を取得できませんでした。",
-                        followupQuestion: "他のおすすめを教えて"
-                    ))
-                }
-                self.isLoading = false
+                self.messages.append(AppChatMessage(
+                    role: .assistant,
+                    content: info,
+                    spots: [spot],
+                    followupQuestion: "このお店への行き方を教えて",
+                    showOnMapAction: ShowOnMapAction(type: "show", spotIds: [spot.id])
+                ))
+            } else {
+                self.messages.append(AppChatMessage(
+                    role: .assistant,
+                    content: "「\(spot.name)」の詳細情報を取得できませんでした。",
+                    followupQuestion: "他のおすすめを教えて"
+                ))
             }
         }
     }
@@ -236,7 +252,7 @@ final class ChatViewModel: ObservableObject {
     // MARK: - 場所検出
 
     // メッセージから場所名を抽出
-    nonisolated private func extractPlaceName(from message: String) -> String? {
+    nonisolated private static func extractPlaceName(from message: String) -> String? {
         // 非地名ワードのブロックリスト
         let nonPlaceWords = [
             "静か", "ゆっくり", "のんびり", "車椅子", "車いす", "バリアフリー",
@@ -311,7 +327,7 @@ final class ChatViewModel: ObservableObject {
 
     // 場所名をジオコーディングして座標を取得
     private func detectLocation(from message: String) async -> CLLocationCoordinate2D? {
-        guard let placeName = extractPlaceName(from: message) else { return nil }
+        guard let placeName = Self.extractPlaceName(from: message) else { return nil }
 
         do {
             let latLng = try await GeocodingService.shared.geocode(placeName)
@@ -328,7 +344,7 @@ final class ChatViewModel: ObservableObject {
         let reason: String
     }
 
-    private func extractSearchQueries(from message: String) -> [SearchQuery] {
+    nonisolated private static func extractSearchQueries(from message: String) -> [SearchQuery] {
         var queries: [SearchQuery] = []
 
         // カフェ関連
@@ -469,7 +485,7 @@ final class ChatViewModel: ObservableObject {
     }
 
     // 自然言語からキーワードを抽出
-    private func extractNaturalKeywords(from message: String) -> [String] {
+    nonisolated private static func extractNaturalKeywords(from message: String) -> [String] {
         // 不要な助詞・接続詞を除去してキーワードを抽出
         let stopWords = ["が", "を", "に", "は", "の", "で", "と", "も", "な", "い",
                          "たい", "ほしい", "ある", "いる", "できる", "ない", "ます",
@@ -525,7 +541,7 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - フォローアップ質問生成
 
-    private func generateFollowup(for message: String) -> String? {
+    nonisolated private static func generateFollowup(for message: String) -> String? {
         if message.contains("カフェ") { return "車椅子で入れるカフェはある？" }
         if message.contains("レストラン") || message.contains("食事") { return "バリアフリー対応のレストランは？" }
         if message.contains("トイレ") { return "近くのカフェも教えて" }
