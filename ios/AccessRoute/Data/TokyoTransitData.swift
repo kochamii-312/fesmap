@@ -52,6 +52,11 @@ enum TokyoTransitData {
 
     static let throughServiceConnections: [ThroughServiceConnection] = [
         ThroughServiceConnection(lineId1: "tokyu_dento", lineId2: "metro_hanzomon", stationId: "shibuya", penaltyMinutes: 0),
+        ThroughServiceConnection(lineId1: "tokyu_toyoko", lineId2: "metro_fukutoshin", stationId: "shibuya", penaltyMinutes: 0),
+        ThroughServiceConnection(lineId1: "tobu_tojo", lineId2: "metro_fukutoshin", stationId: "wakoshi", penaltyMinutes: 0),
+        ThroughServiceConnection(lineId1: "odakyu", lineId2: "metro_chiyoda", stationId: "yoyogiuehara", penaltyMinutes: 0),
+        ThroughServiceConnection(lineId1: "jr_sobu_local", lineId2: "metro_tozai", stationId: "nakano", penaltyMinutes: 0),
+        ThroughServiceConnection(lineId1: "metro_namboku", lineId2: "toei_mita", stationId: "meguro", penaltyMinutes: 1.0),
     ]
 
     /// 直通運転かどうかを判定
@@ -63,6 +68,15 @@ enum TokyoTransitData {
         }
     }
 
+    /// 直通運転のペナルティ時間を返す（分）
+    static func throughServicePenalty(lineId1: String, lineId2: String, atStation stationId: String) -> Double {
+        throughServiceConnections.first { conn in
+            conn.stationId == stationId &&
+            ((conn.lineId1 == lineId1 && conn.lineId2 == lineId2) ||
+             (conn.lineId1 == lineId2 && conn.lineId2 == lineId1))
+        }?.penaltyMinutes ?? 0.0
+    }
+
     // MARK: - 駅データ
 
     static let stations: [TransitStation] = [
@@ -71,7 +85,7 @@ enum TokyoTransitData {
             id: "shibuya",
             name: "渋谷",
             coordinate: CLLocationCoordinate2D(latitude: 35.6591, longitude: 139.7002),
-            lineIds: ["tokyu_dento", "jr_yamanote", "metro_hanzomon", "metro_ginza", "metro_fukutoshin"]
+            lineIds: ["tokyu_dento", "jr_yamanote", "metro_hanzomon", "metro_ginza", "metro_fukutoshin", "tokyu_toyoko"]
         ),
         TransitStation(
             id: "ikejiriohashi",
@@ -193,7 +207,7 @@ enum TokyoTransitData {
             id: "jiyugaoka",
             name: "自由が丘",
             coordinate: CLLocationCoordinate2D(latitude: 35.6074, longitude: 139.6693),
-            lineIds: ["tokyu_oimachi"]
+            lineIds: ["tokyu_oimachi", "tokyu_toyoko"]
         ),
 
         // JR南武線
@@ -201,13 +215,13 @@ enum TokyoTransitData {
             id: "kawasaki",
             name: "川崎",
             coordinate: CLLocationCoordinate2D(latitude: 35.5313, longitude: 139.7020),
-            lineIds: ["jr_nambu"]
+            lineIds: ["jr_nambu", "jr_keihin_tohoku"]
         ),
         TransitStation(
             id: "musashikosugi",
             name: "武蔵小杉",
             coordinate: CLLocationCoordinate2D(latitude: 35.5762, longitude: 139.6596),
-            lineIds: ["jr_nambu"]
+            lineIds: ["jr_nambu", "tokyu_toyoko"]
         ),
         TransitStation(
             id: "musashimizonokuchi",
@@ -219,7 +233,7 @@ enum TokyoTransitData {
             id: "noborito",
             name: "登戸",
             coordinate: CLLocationCoordinate2D(latitude: 35.6165, longitude: 139.5690),
-            lineIds: ["jr_nambu"]
+            lineIds: ["jr_nambu", "odakyu"]
         ),
         TransitStation(
             id: "inadazutsumi",
@@ -245,31 +259,31 @@ enum TokyoTransitData {
             id: "tokyo",
             name: "東京",
             coordinate: CLLocationCoordinate2D(latitude: 35.6812, longitude: 139.7671),
-            lineIds: ["jr_yamanote", "jr_chuo_rapid"]
+            lineIds: ["jr_yamanote", "jr_chuo_rapid", "jr_keihin_tohoku"]
         ),
         TransitStation(
             id: "kanda",
             name: "神田",
             coordinate: CLLocationCoordinate2D(latitude: 35.6918, longitude: 139.7709),
-            lineIds: ["jr_yamanote", "metro_ginza", "jr_chuo_rapid"]
+            lineIds: ["jr_yamanote", "metro_ginza", "jr_chuo_rapid", "jr_keihin_tohoku"]
         ),
         TransitStation(
             id: "akihabara",
             name: "秋葉原",
             coordinate: CLLocationCoordinate2D(latitude: 35.6984, longitude: 139.7731),
-            lineIds: ["jr_yamanote", "metro_hibiya"]
+            lineIds: ["jr_yamanote", "metro_hibiya", "jr_keihin_tohoku", "jr_sobu_local"]
         ),
         TransitStation(
             id: "okachimachi",
             name: "御徒町",
             coordinate: CLLocationCoordinate2D(latitude: 35.7074, longitude: 139.7745),
-            lineIds: ["jr_yamanote"]
+            lineIds: ["jr_yamanote", "jr_keihin_tohoku"]
         ),
         TransitStation(
             id: "ueno",
             name: "上野",
             coordinate: CLLocationCoordinate2D(latitude: 35.7141, longitude: 139.7774),
-            lineIds: ["jr_yamanote", "metro_ginza", "metro_hibiya"]
+            lineIds: ["jr_yamanote", "metro_ginza", "metro_hibiya", "jr_keihin_tohoku"]
         ),
         TransitStation(
             id: "uguisudani",
@@ -281,25 +295,25 @@ enum TokyoTransitData {
             id: "nippori",
             name: "日暮里",
             coordinate: CLLocationCoordinate2D(latitude: 35.7281, longitude: 139.7710),
-            lineIds: ["jr_yamanote"]
+            lineIds: ["jr_yamanote", "jr_keihin_tohoku"]
         ),
         TransitStation(
             id: "nishinippori",
             name: "西日暮里",
             coordinate: CLLocationCoordinate2D(latitude: 35.7320, longitude: 139.7669),
-            lineIds: ["jr_yamanote"]
+            lineIds: ["jr_yamanote", "jr_keihin_tohoku", "metro_chiyoda"]
         ),
         TransitStation(
             id: "tabata",
             name: "田端",
             coordinate: CLLocationCoordinate2D(latitude: 35.7381, longitude: 139.7608),
-            lineIds: ["jr_yamanote"]
+            lineIds: ["jr_yamanote", "jr_keihin_tohoku"]
         ),
         TransitStation(
             id: "komagome",
             name: "駒込",
             coordinate: CLLocationCoordinate2D(latitude: 35.7363, longitude: 139.7468),
-            lineIds: ["jr_yamanote"]
+            lineIds: ["jr_yamanote", "metro_namboku"]
         ),
         TransitStation(
             id: "otsuka",
@@ -311,7 +325,7 @@ enum TokyoTransitData {
             id: "ikebukuro",
             name: "池袋",
             coordinate: CLLocationCoordinate2D(latitude: 35.7295, longitude: 139.7109),
-            lineIds: ["jr_yamanote", "metro_fukutoshin"]
+            lineIds: ["jr_yamanote", "metro_fukutoshin", "seibu_ikebukuro", "tobu_tojo"]
         ),
         TransitStation(
             id: "mejiro",
@@ -323,7 +337,7 @@ enum TokyoTransitData {
             id: "takadanobaba",
             name: "高田馬場",
             coordinate: CLLocationCoordinate2D(latitude: 35.7126, longitude: 139.7035),
-            lineIds: ["jr_yamanote"]
+            lineIds: ["jr_yamanote", "metro_tozai"]
         ),
         TransitStation(
             id: "shinookubo",
@@ -335,7 +349,7 @@ enum TokyoTransitData {
             id: "shinjuku",
             name: "新宿",
             coordinate: CLLocationCoordinate2D(latitude: 35.6896, longitude: 139.7006),
-            lineIds: ["jr_yamanote", "toei_shinjuku", "jr_chuo_rapid", "toei_oedo", "metro_marunouchi"]
+            lineIds: ["jr_yamanote", "toei_shinjuku", "jr_chuo_rapid", "toei_oedo", "metro_marunouchi", "keio", "odakyu", "jr_sobu_local"]
         ),
         TransitStation(
             id: "harajuku",
@@ -353,7 +367,7 @@ enum TokyoTransitData {
             id: "meguro",
             name: "目黒",
             coordinate: CLLocationCoordinate2D(latitude: 35.6337, longitude: 139.7158),
-            lineIds: ["jr_yamanote", "toei_mita"]
+            lineIds: ["jr_yamanote", "toei_mita", "metro_namboku"]
         ),
         TransitStation(
             id: "gotanda",
@@ -371,7 +385,7 @@ enum TokyoTransitData {
             id: "shinagawa",
             name: "品川",
             coordinate: CLLocationCoordinate2D(latitude: 35.6284, longitude: 139.7387),
-            lineIds: ["jr_yamanote"]
+            lineIds: ["jr_yamanote", "jr_keihin_tohoku", "keikyu"]
         ),
         TransitStation(
             id: "takanawagateway",
@@ -383,13 +397,13 @@ enum TokyoTransitData {
             id: "tamachi",
             name: "田町",
             coordinate: CLLocationCoordinate2D(latitude: 35.6457, longitude: 139.7475),
-            lineIds: ["jr_yamanote"]
+            lineIds: ["jr_yamanote", "jr_keihin_tohoku"]
         ),
         TransitStation(
             id: "hamamatsucho",
             name: "浜松町",
             coordinate: CLLocationCoordinate2D(latitude: 35.6555, longitude: 139.7571),
-            lineIds: ["jr_yamanote"]
+            lineIds: ["jr_yamanote", "jr_keihin_tohoku"]
         ),
         TransitStation(
             id: "shimbashi",
@@ -409,7 +423,7 @@ enum TokyoTransitData {
             id: "omotesando",
             name: "表参道",
             coordinate: CLLocationCoordinate2D(latitude: 35.6652, longitude: 139.7123),
-            lineIds: ["metro_hanzomon", "metro_ginza"]
+            lineIds: ["metro_hanzomon", "metro_ginza", "metro_chiyoda"]
         ),
         TransitStation(
             id: "aoyamaicchome",
@@ -421,7 +435,7 @@ enum TokyoTransitData {
             id: "nagatacho",
             name: "永田町",
             coordinate: CLLocationCoordinate2D(latitude: 35.6787, longitude: 139.7375),
-            lineIds: ["metro_hanzomon"]
+            lineIds: ["metro_hanzomon", "metro_namboku"]
         ),
         TransitStation(
             id: "hanzomon",
@@ -433,13 +447,13 @@ enum TokyoTransitData {
             id: "kudanshita",
             name: "九段下",
             coordinate: CLLocationCoordinate2D(latitude: 35.6953, longitude: 139.7511),
-            lineIds: ["metro_hanzomon", "toei_shinjuku"]
+            lineIds: ["metro_hanzomon", "toei_shinjuku", "metro_tozai"]
         ),
         TransitStation(
             id: "otemachi",
             name: "大手町",
             coordinate: CLLocationCoordinate2D(latitude: 35.6862, longitude: 139.7637),
-            lineIds: ["metro_hanzomon", "toei_mita"]
+            lineIds: ["metro_hanzomon", "toei_mita", "metro_tozai", "metro_chiyoda"]
         ),
         TransitStation(
             id: "mitsukoshimae",
@@ -463,7 +477,7 @@ enum TokyoTransitData {
             id: "kinshicho",
             name: "錦糸町",
             coordinate: CLLocationCoordinate2D(latitude: 35.6959, longitude: 139.8143),
-            lineIds: ["metro_hanzomon"]
+            lineIds: ["metro_hanzomon", "jr_sobu_local"]
         ),
         TransitStation(
             id: "oshiage",
@@ -477,13 +491,13 @@ enum TokyoTransitData {
             id: "shirokanedai",
             name: "白金台",
             coordinate: CLLocationCoordinate2D(latitude: 35.6385, longitude: 139.7253),
-            lineIds: ["toei_mita"]
+            lineIds: ["toei_mita", "metro_namboku"]
         ),
         TransitStation(
             id: "shirokanetakanawa",
             name: "白金高輪",
             coordinate: CLLocationCoordinate2D(latitude: 35.6432, longitude: 139.7334),
-            lineIds: ["toei_mita"]
+            lineIds: ["toei_mita", "metro_namboku"]
         ),
         TransitStation(
             id: "mita",
@@ -507,7 +521,7 @@ enum TokyoTransitData {
             id: "hibiya",
             name: "日比谷",
             coordinate: CLLocationCoordinate2D(latitude: 35.6750, longitude: 139.7600),
-            lineIds: ["toei_mita"]
+            lineIds: ["toei_mita", "metro_chiyoda"]
         ),
         TransitStation(
             id: "jimbocho",
@@ -519,7 +533,7 @@ enum TokyoTransitData {
             id: "suidobashi",
             name: "水道橋",
             coordinate: CLLocationCoordinate2D(latitude: 35.7020, longitude: 139.7535),
-            lineIds: ["toei_mita"]
+            lineIds: ["toei_mita", "jr_sobu_local"]
         ),
         TransitStation(
             id: "kasuga",
@@ -557,7 +571,7 @@ enum TokyoTransitData {
             id: "ichigaya",
             name: "市ヶ谷",
             coordinate: CLLocationCoordinate2D(latitude: 35.6916, longitude: 139.7356),
-            lineIds: ["toei_shinjuku"]
+            lineIds: ["toei_shinjuku", "metro_namboku", "jr_sobu_local"]
         ),
         TransitStation(
             id: "iwamotocho",
@@ -583,44 +597,44 @@ enum TokyoTransitData {
             id: "ochanomizu",
             name: "御茶ノ水",
             coordinate: CLLocationCoordinate2D(latitude: 35.6997, longitude: 139.7633),
-            lineIds: ["jr_chuo_rapid"]
+            lineIds: ["jr_chuo_rapid", "jr_sobu_local"]
         ),
         TransitStation(
             id: "yotsuya",
             name: "四ツ谷",
             coordinate: CLLocationCoordinate2D(latitude: 35.6860, longitude: 139.7300),
-            lineIds: ["jr_chuo_rapid"]
+            lineIds: ["jr_chuo_rapid", "metro_namboku", "jr_sobu_local"]
         ),
         TransitStation(
             id: "nakano",
             name: "中野",
             coordinate: CLLocationCoordinate2D(latitude: 35.7074, longitude: 139.6655),
-            lineIds: ["jr_chuo_rapid"]
+            lineIds: ["jr_chuo_rapid", "metro_tozai", "jr_sobu_local"]
         ),
         TransitStation(
             id: "ogikubo",
             name: "荻窪",
             coordinate: CLLocationCoordinate2D(latitude: 35.7043, longitude: 139.6200),
-            lineIds: ["jr_chuo_rapid"]
+            lineIds: ["jr_chuo_rapid", "jr_sobu_local"]
         ),
         TransitStation(
             id: "kichijoji",
             name: "吉祥寺",
             coordinate: CLLocationCoordinate2D(latitude: 35.7030, longitude: 139.5796),
-            lineIds: ["jr_chuo_rapid"]
+            lineIds: ["jr_chuo_rapid", "jr_sobu_local"]
         ),
         TransitStation(
             id: "mitaka",
             name: "三鷹",
             coordinate: CLLocationCoordinate2D(latitude: 35.7026, longitude: 139.5607),
-            lineIds: ["jr_chuo_rapid"]
+            lineIds: ["jr_chuo_rapid", "jr_sobu_local"]
         ),
         // 飯田橋（都営大江戸線 + 他路線）
         TransitStation(
             id: "iidabashi",
             name: "飯田橋",
             coordinate: CLLocationCoordinate2D(latitude: 35.7010, longitude: 139.7475),
-            lineIds: ["toei_oedo"]
+            lineIds: ["toei_oedo", "metro_tozai", "metro_namboku", "jr_sobu_local"]
         ),
 
         // 都営大江戸線
@@ -685,7 +699,7 @@ enum TokyoTransitData {
             id: "ryogoku",
             name: "両国",
             coordinate: CLLocationCoordinate2D(latitude: 35.6958, longitude: 139.7934),
-            lineIds: ["toei_oedo"]
+            lineIds: ["toei_oedo", "jr_sobu_local"]
         ),
         TransitStation(
             id: "kiyosumishirakawa",
@@ -697,7 +711,7 @@ enum TokyoTransitData {
             id: "monzennakacho",
             name: "門前仲町",
             coordinate: CLLocationCoordinate2D(latitude: 35.6726, longitude: 139.7950),
-            lineIds: ["toei_oedo"]
+            lineIds: ["toei_oedo", "metro_tozai"]
         ),
         TransitStation(
             id: "tsukishima",
@@ -734,7 +748,7 @@ enum TokyoTransitData {
             id: "azabujuban",
             name: "麻布十番",
             coordinate: CLLocationCoordinate2D(latitude: 35.6553, longitude: 139.7370),
-            lineIds: ["toei_oedo"]
+            lineIds: ["toei_oedo", "metro_namboku"]
         ),
         // 六本木 - metro_hibiya セクションで定義済み（lineIds に toei_oedo 追加済み）
         // 青山一丁目 - metro_hanzomon セクションで定義済み（lineIds に toei_oedo 追加済み）
@@ -748,7 +762,7 @@ enum TokyoTransitData {
             id: "yoyogi",
             name: "代々木",
             coordinate: CLLocationCoordinate2D(latitude: 35.6832, longitude: 139.7020),
-            lineIds: ["toei_oedo", "jr_yamanote"]
+            lineIds: ["toei_oedo", "jr_yamanote", "jr_sobu_local"]
         ),
         // 新宿 - jr_yamanote セクションで定義済み（lineIds に toei_oedo 追加済み）
         // 都庁前 - 上で定義済み（ループ接続点）
@@ -776,13 +790,13 @@ enum TokyoTransitData {
             id: "kokkaigijido",
             name: "国会議事堂前",
             coordinate: CLLocationCoordinate2D(latitude: 35.6740, longitude: 139.7450),
-            lineIds: ["metro_marunouchi"]
+            lineIds: ["metro_marunouchi", "metro_chiyoda"]
         ),
         TransitStation(
             id: "kasumigaseki",
             name: "霞ケ関",
             coordinate: CLLocationCoordinate2D(latitude: 35.6725, longitude: 139.7516),
-            lineIds: ["metro_marunouchi", "metro_hibiya"]
+            lineIds: ["metro_marunouchi", "metro_hibiya", "metro_chiyoda"]
         ),
         TransitStation(
             id: "ginza",
@@ -794,7 +808,7 @@ enum TokyoTransitData {
             id: "korakuen",
             name: "後楽園",
             coordinate: CLLocationCoordinate2D(latitude: 35.7068, longitude: 139.7521),
-            lineIds: ["metro_marunouchi"]
+            lineIds: ["metro_marunouchi", "metro_namboku"]
         ),
 
         // 東京メトロ銀座線（共有駅以外）
@@ -808,7 +822,7 @@ enum TokyoTransitData {
             id: "tameikesanno",
             name: "溜池山王",
             coordinate: CLLocationCoordinate2D(latitude: 35.6708, longitude: 139.7413),
-            lineIds: ["metro_ginza"]
+            lineIds: ["metro_ginza", "metro_namboku"]
         ),
         TransitStation(
             id: "toranomon",
@@ -820,7 +834,7 @@ enum TokyoTransitData {
             id: "nihombashi",
             name: "日本橋",
             coordinate: CLLocationCoordinate2D(latitude: 35.6820, longitude: 139.7740),
-            lineIds: ["metro_ginza"]
+            lineIds: ["metro_ginza", "metro_tozai"]
         ),
         TransitStation(
             id: "asakusa",
@@ -834,7 +848,7 @@ enum TokyoTransitData {
             id: "nakameguro",
             name: "中目黒",
             coordinate: CLLocationCoordinate2D(latitude: 35.6441, longitude: 139.6991),
-            lineIds: ["metro_hibiya"]
+            lineIds: ["metro_hibiya", "tokyu_toyoko"]
         ),
         TransitStation(
             id: "hiroo",
@@ -864,7 +878,7 @@ enum TokyoTransitData {
             id: "kitasenju",
             name: "北千住",
             coordinate: CLLocationCoordinate2D(latitude: 35.7497, longitude: 139.8049),
-            lineIds: ["metro_hibiya"]
+            lineIds: ["metro_hibiya", "metro_chiyoda"]
         ),
 
         // 東京メトロ副都心線（共有駅以外）
@@ -872,7 +886,7 @@ enum TokyoTransitData {
             id: "meijijingumae",
             name: "明治神宮前",
             coordinate: CLLocationCoordinate2D(latitude: 35.6700, longitude: 139.7027),
-            lineIds: ["metro_fukutoshin"]
+            lineIds: ["metro_fukutoshin", "metro_chiyoda"]
         ),
         TransitStation(
             id: "kitasando",
@@ -885,6 +899,406 @@ enum TokyoTransitData {
             name: "東新宿",
             coordinate: CLLocationCoordinate2D(latitude: 35.6960, longitude: 139.7100),
             lineIds: ["metro_fukutoshin", "toei_oedo"]
+        ),
+
+        // 東急東横線（新規駅）
+        TransitStation(
+            id: "daikanyama",
+            name: "代官山",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6481, longitude: 139.7032),
+            lineIds: ["tokyu_toyoko"]
+        ),
+        TransitStation(
+            id: "yutenji",
+            name: "祐天寺",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6377, longitude: 139.6914),
+            lineIds: ["tokyu_toyoko"]
+        ),
+        TransitStation(
+            id: "gakugeidaigaku",
+            name: "学芸大学",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6299, longitude: 139.6862),
+            lineIds: ["tokyu_toyoko"]
+        ),
+        TransitStation(
+            id: "toritsudaigaku",
+            name: "都立大学",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6175, longitude: 139.6762),
+            lineIds: ["tokyu_toyoko"]
+        ),
+        TransitStation(
+            id: "denenChofu",
+            name: "田園調布",
+            coordinate: CLLocationCoordinate2D(latitude: 35.5977, longitude: 139.6672),
+            lineIds: ["tokyu_toyoko"]
+        ),
+        TransitStation(
+            id: "tamagawa",
+            name: "多摩川",
+            coordinate: CLLocationCoordinate2D(latitude: 35.5869, longitude: 139.6694),
+            lineIds: ["tokyu_toyoko"]
+        ),
+        TransitStation(
+            id: "shinmaruko",
+            name: "新丸子",
+            coordinate: CLLocationCoordinate2D(latitude: 35.5807, longitude: 139.6621),
+            lineIds: ["tokyu_toyoko"]
+        ),
+        TransitStation(
+            id: "motosumiyoshi",
+            name: "元住吉",
+            coordinate: CLLocationCoordinate2D(latitude: 35.5638, longitude: 139.6538),
+            lineIds: ["tokyu_toyoko"]
+        ),
+        TransitStation(
+            id: "hiyoshi",
+            name: "日吉",
+            coordinate: CLLocationCoordinate2D(latitude: 35.5528, longitude: 139.6467),
+            lineIds: ["tokyu_toyoko"]
+        ),
+        TransitStation(
+            id: "tsunashima",
+            name: "綱島",
+            coordinate: CLLocationCoordinate2D(latitude: 35.5369, longitude: 139.6349),
+            lineIds: ["tokyu_toyoko"]
+        ),
+        TransitStation(
+            id: "okurayama",
+            name: "大倉山",
+            coordinate: CLLocationCoordinate2D(latitude: 35.5219, longitude: 139.6299),
+            lineIds: ["tokyu_toyoko"]
+        ),
+        TransitStation(
+            id: "kikuna",
+            name: "菊名",
+            coordinate: CLLocationCoordinate2D(latitude: 35.5104, longitude: 139.6313),
+            lineIds: ["tokyu_toyoko"]
+        ),
+        TransitStation(
+            id: "yokohama",
+            name: "横浜",
+            coordinate: CLLocationCoordinate2D(latitude: 35.4661, longitude: 139.6226),
+            lineIds: ["tokyu_toyoko", "jr_keihin_tohoku", "keikyu"]
+        ),
+
+        // 京王線（新規駅）
+        TransitStation(
+            id: "sasazuka",
+            name: "笹塚",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6737, longitude: 139.6674),
+            lineIds: ["keio"]
+        ),
+        TransitStation(
+            id: "meidaimae",
+            name: "明大前",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6684, longitude: 139.6509),
+            lineIds: ["keio"]
+        ),
+        TransitStation(
+            id: "chofu",
+            name: "調布",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6519, longitude: 139.5444),
+            lineIds: ["keio"]
+        ),
+        TransitStation(
+            id: "fuchu",
+            name: "府中",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6724, longitude: 139.4802),
+            lineIds: ["keio"]
+        ),
+        TransitStation(
+            id: "keiohachioji",
+            name: "京王八王子",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6588, longitude: 139.3424),
+            lineIds: ["keio"]
+        ),
+
+        // 小田急線（新規駅）
+        TransitStation(
+            id: "yoyogiuehara",
+            name: "代々木上原",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6692, longitude: 139.6797),
+            lineIds: ["odakyu", "metro_chiyoda"]
+        ),
+        TransitStation(
+            id: "shimokitazawa",
+            name: "下北沢",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6613, longitude: 139.6669),
+            lineIds: ["odakyu"]
+        ),
+        TransitStation(
+            id: "kyodo",
+            name: "経堂",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6516, longitude: 139.6364),
+            lineIds: ["odakyu"]
+        ),
+        TransitStation(
+            id: "seijogakuenmae",
+            name: "成城学園前",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6397, longitude: 139.5979),
+            lineIds: ["odakyu"]
+        ),
+        TransitStation(
+            id: "shinyurigaoka",
+            name: "新百合ヶ丘",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6030, longitude: 139.5075),
+            lineIds: ["odakyu"]
+        ),
+        TransitStation(
+            id: "machida",
+            name: "町田",
+            coordinate: CLLocationCoordinate2D(latitude: 35.5461, longitude: 139.4451),
+            lineIds: ["odakyu"]
+        ),
+        TransitStation(
+            id: "odawara",
+            name: "小田原",
+            coordinate: CLLocationCoordinate2D(latitude: 35.2558, longitude: 139.1567),
+            lineIds: ["odakyu"]
+        ),
+
+        // JR京浜東北線（新規駅）
+        TransitStation(
+            id: "omiya",
+            name: "大宮",
+            coordinate: CLLocationCoordinate2D(latitude: 35.9064, longitude: 139.6243),
+            lineIds: ["jr_keihin_tohoku"]
+        ),
+        TransitStation(
+            id: "urawa",
+            name: "浦和",
+            coordinate: CLLocationCoordinate2D(latitude: 35.8587, longitude: 139.6568),
+            lineIds: ["jr_keihin_tohoku"]
+        ),
+        TransitStation(
+            id: "akabane",
+            name: "赤羽",
+            coordinate: CLLocationCoordinate2D(latitude: 35.7781, longitude: 139.7208),
+            lineIds: ["jr_keihin_tohoku"]
+        ),
+        TransitStation(
+            id: "oji",
+            name: "王子",
+            coordinate: CLLocationCoordinate2D(latitude: 35.7554, longitude: 139.7371),
+            lineIds: ["jr_keihin_tohoku"]
+        ),
+        TransitStation(
+            id: "omori",
+            name: "大森",
+            coordinate: CLLocationCoordinate2D(latitude: 35.5884, longitude: 139.7291),
+            lineIds: ["jr_keihin_tohoku"]
+        ),
+        TransitStation(
+            id: "kamata",
+            name: "蒲田",
+            coordinate: CLLocationCoordinate2D(latitude: 35.5628, longitude: 139.7168),
+            lineIds: ["jr_keihin_tohoku"]
+        ),
+        TransitStation(
+            id: "tsurumi",
+            name: "鶴見",
+            coordinate: CLLocationCoordinate2D(latitude: 35.5057, longitude: 139.6769),
+            lineIds: ["jr_keihin_tohoku"]
+        ),
+
+        // メトロ東西線（新規駅）
+        TransitStation(
+            id: "ochiai",
+            name: "落合",
+            coordinate: CLLocationCoordinate2D(latitude: 35.7102, longitude: 139.6839),
+            lineIds: ["metro_tozai"]
+        ),
+        TransitStation(
+            id: "waseda",
+            name: "早稲田",
+            coordinate: CLLocationCoordinate2D(latitude: 35.7058, longitude: 139.7212),
+            lineIds: ["metro_tozai"]
+        ),
+        TransitStation(
+            id: "kagurazaka",
+            name: "神楽坂",
+            coordinate: CLLocationCoordinate2D(latitude: 35.7039, longitude: 139.7342),
+            lineIds: ["metro_tozai"]
+        ),
+        TransitStation(
+            id: "takebashi",
+            name: "竹橋",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6900, longitude: 139.7607),
+            lineIds: ["metro_tozai"]
+        ),
+        TransitStation(
+            id: "kayabacho",
+            name: "茅場町",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6793, longitude: 139.7797),
+            lineIds: ["metro_tozai"]
+        ),
+        TransitStation(
+            id: "kiba",
+            name: "木場",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6694, longitude: 139.8065),
+            lineIds: ["metro_tozai"]
+        ),
+        TransitStation(
+            id: "toyocho",
+            name: "東陽町",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6696, longitude: 139.8175),
+            lineIds: ["metro_tozai"]
+        ),
+        TransitStation(
+            id: "nishifunabashi",
+            name: "西船橋",
+            coordinate: CLLocationCoordinate2D(latitude: 35.7082, longitude: 139.9590),
+            lineIds: ["metro_tozai"]
+        ),
+
+        // メトロ千代田線（新規駅）
+        TransitStation(
+            id: "yoyogikoen",
+            name: "代々木公園",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6683, longitude: 139.6916),
+            lineIds: ["metro_chiyoda"]
+        ),
+        TransitStation(
+            id: "akasaka",
+            name: "赤坂",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6730, longitude: 139.7370),
+            lineIds: ["metro_chiyoda"]
+        ),
+        TransitStation(
+            id: "shinochanomizu",
+            name: "新御茶ノ水",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6958, longitude: 139.7652),
+            lineIds: ["metro_chiyoda"]
+        ),
+        TransitStation(
+            id: "yushima",
+            name: "湯島",
+            coordinate: CLLocationCoordinate2D(latitude: 35.7079, longitude: 139.7701),
+            lineIds: ["metro_chiyoda"]
+        ),
+        TransitStation(
+            id: "nezu",
+            name: "根津",
+            coordinate: CLLocationCoordinate2D(latitude: 35.7180, longitude: 139.7649),
+            lineIds: ["metro_chiyoda"]
+        ),
+        TransitStation(
+            id: "sendagi",
+            name: "千駄木",
+            coordinate: CLLocationCoordinate2D(latitude: 35.7245, longitude: 139.7629),
+            lineIds: ["metro_chiyoda"]
+        ),
+        TransitStation(
+            id: "machiya",
+            name: "町屋",
+            coordinate: CLLocationCoordinate2D(latitude: 35.7427, longitude: 139.7823),
+            lineIds: ["metro_chiyoda"]
+        ),
+        TransitStation(
+            id: "ayase",
+            name: "綾瀬",
+            coordinate: CLLocationCoordinate2D(latitude: 35.7619, longitude: 139.8241),
+            lineIds: ["metro_chiyoda"]
+        ),
+
+        // メトロ南北線（新規駅）
+        TransitStation(
+            id: "roppongiicchome",
+            name: "六本木一丁目",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6650, longitude: 139.7388),
+            lineIds: ["metro_namboku"]
+        ),
+        TransitStation(
+            id: "todaimae",
+            name: "東大前",
+            coordinate: CLLocationCoordinate2D(latitude: 35.7173, longitude: 139.7582),
+            lineIds: ["metro_namboku"]
+        ),
+        TransitStation(
+            id: "akabaneiwabuchi",
+            name: "赤羽岩淵",
+            coordinate: CLLocationCoordinate2D(latitude: 35.7833, longitude: 139.7222),
+            lineIds: ["metro_namboku"]
+        ),
+
+        // 西武池袋線（新規駅）
+        TransitStation(
+            id: "nerima",
+            name: "練馬",
+            coordinate: CLLocationCoordinate2D(latitude: 35.7361, longitude: 139.6523),
+            lineIds: ["seibu_ikebukuro"]
+        ),
+        TransitStation(
+            id: "shakujiikoen",
+            name: "石神井公園",
+            coordinate: CLLocationCoordinate2D(latitude: 35.7435, longitude: 139.6070),
+            lineIds: ["seibu_ikebukuro"]
+        ),
+        TransitStation(
+            id: "tokorozawa",
+            name: "所沢",
+            coordinate: CLLocationCoordinate2D(latitude: 35.7868, longitude: 139.4733),
+            lineIds: ["seibu_ikebukuro"]
+        ),
+
+        // 東武東上線（新規駅）
+        TransitStation(
+            id: "wakoshi",
+            name: "和光市",
+            coordinate: CLLocationCoordinate2D(latitude: 35.7884, longitude: 139.6127),
+            lineIds: ["tobu_tojo", "metro_fukutoshin"]
+        ),
+        TransitStation(
+            id: "shiki",
+            name: "志木",
+            coordinate: CLLocationCoordinate2D(latitude: 35.8222, longitude: 139.5752),
+            lineIds: ["tobu_tojo"]
+        ),
+        TransitStation(
+            id: "kawagoe",
+            name: "川越",
+            coordinate: CLLocationCoordinate2D(latitude: 35.9079, longitude: 139.4833),
+            lineIds: ["tobu_tojo"]
+        ),
+
+        // 京急本線（新規駅）
+        TransitStation(
+            id: "keikyukamata",
+            name: "京急蒲田",
+            coordinate: CLLocationCoordinate2D(latitude: 35.5597, longitude: 139.7240),
+            lineIds: ["keikyu"]
+        ),
+        TransitStation(
+            id: "keikyukawasaki",
+            name: "京急川崎",
+            coordinate: CLLocationCoordinate2D(latitude: 35.5328, longitude: 139.7008),
+            lineIds: ["keikyu"]
+        ),
+
+        // JR総武線各停（新規駅）
+        TransitStation(
+            id: "sendagaya",
+            name: "千駄ヶ谷",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6811, longitude: 139.7111),
+            lineIds: ["jr_sobu_local"]
+        ),
+        TransitStation(
+            id: "shinanomachi",
+            name: "信濃町",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6800, longitude: 139.7205),
+            lineIds: ["jr_sobu_local"]
+        ),
+        TransitStation(
+            id: "funabashi",
+            name: "船橋",
+            coordinate: CLLocationCoordinate2D(latitude: 35.7017, longitude: 139.9850),
+            lineIds: ["jr_sobu_local"]
+        ),
+        TransitStation(
+            id: "chiba",
+            name: "千葉",
+            coordinate: CLLocationCoordinate2D(latitude: 35.6122, longitude: 140.1154),
+            lineIds: ["jr_sobu_local"]
         ),
     ]
 
@@ -901,7 +1315,7 @@ enum TokyoTransitData {
                 "sakurashinmachi", "yoga", "futakotamagawa", "futakoshinchi",
                 "takatsu", "mizonokuchi", "kajigaya", "miyazakidai", "miyamaedaira", "saginuma", "tamaplaza", "azamino", "chuorinkan",
             ],
-            avgIntervalMinutes: 2.0
+            avgIntervalMinutes: 2.5
         ),
         TransitLine(
             id: "tokyu_oimachi",
@@ -923,7 +1337,7 @@ enum TokyoTransitData {
                 "kawasaki", "musashikosugi", "musashimizonokuchi",
                 "noborito", "inadazutsumi", "fuchuhommachi", "tachikawa",
             ],
-            avgIntervalMinutes: 3.0
+            avgIntervalMinutes: 3.5
         ),
         TransitLine(
             id: "jr_yamanote",
@@ -965,7 +1379,7 @@ enum TokyoTransitData {
                 "shibakoen", "daimon", "hibiya", "otemachi", "jimbocho",
                 "suidobashi", "kasuga", "sugamo", "nishitakashimadaira",
             ],
-            avgIntervalMinutes: 2.0
+            avgIntervalMinutes: 2.5
         ),
         TransitLine(
             id: "toei_shinjuku",
@@ -977,7 +1391,7 @@ enum TokyoTransitData {
                 "kudanshita", "jimbocho", "iwamotocho", "bakuroyokoyama",
                 "motoyawata",
             ],
-            avgIntervalMinutes: 2.0
+            avgIntervalMinutes: 2.5
         ),
         TransitLine(
             id: "jr_chuo_rapid",
@@ -1007,7 +1421,7 @@ enum TokyoTransitData {
                 "kokuritsukyogijo", "yoyogi", "shinjuku",
                 "tochomae", "nishishinjuku5", "nakanosakaue",
             ],
-            avgIntervalMinutes: 2.0,
+            avgIntervalMinutes: 2.5,
             isLoop: true
         ),
         TransitLine(
@@ -1055,7 +1469,141 @@ enum TokyoTransitData {
                 "shibuya", "meijijingumae", "kitasando",
                 "shinjukusanchome", "higashishinjuku", "ikebukuro",
             ],
-            avgIntervalMinutes: 2.0
+            avgIntervalMinutes: 2.5
+        ),
+        TransitLine(
+            id: "tokyu_toyoko",
+            name: "東急東横線",
+            company: "東急電鉄",
+            color: "#DA0442",
+            stationIds: [
+                "shibuya", "daikanyama", "nakameguro", "yutenji",
+                "gakugeidaigaku", "toritsudaigaku", "jiyugaoka",
+                "denenChofu", "tamagawa", "shinmaruko", "musashikosugi",
+                "motosumiyoshi", "hiyoshi", "tsunashima", "okurayama",
+                "kikuna", "yokohama",
+            ],
+            avgIntervalMinutes: 2.5
+        ),
+        TransitLine(
+            id: "keio",
+            name: "京王線",
+            company: "京王電鉄",
+            color: "#DD0077",
+            stationIds: [
+                "shinjuku", "sasazuka", "meidaimae", "chofu",
+                "fuchu", "keiohachioji",
+            ],
+            avgIntervalMinutes: 3.0
+        ),
+        TransitLine(
+            id: "odakyu",
+            name: "小田急線",
+            company: "小田急電鉄",
+            color: "#0078C7",
+            stationIds: [
+                "shinjuku", "yoyogiuehara", "shimokitazawa", "kyodo",
+                "seijogakuenmae", "noborito", "shinyurigaoka", "machida",
+                "odawara",
+            ],
+            avgIntervalMinutes: 3.0
+        ),
+        TransitLine(
+            id: "jr_keihin_tohoku",
+            name: "JR京浜東北線",
+            company: "JR東日本",
+            color: "#00B2E5",
+            stationIds: [
+                "omiya", "urawa", "akabane", "oji", "tabata",
+                "nishinippori", "nippori", "ueno", "okachimachi",
+                "akihabara", "kanda", "tokyo", "hamamatsucho",
+                "tamachi", "shinagawa", "omori", "kamata",
+                "kawasaki", "tsurumi", "yokohama",
+            ],
+            avgIntervalMinutes: 2.5
+        ),
+        TransitLine(
+            id: "metro_tozai",
+            name: "メトロ東西線",
+            company: "東京メトロ",
+            color: "#009BBF",
+            stationIds: [
+                "nakano", "ochiai", "takadanobaba", "waseda",
+                "kagurazaka", "iidabashi", "kudanshita", "takebashi",
+                "otemachi", "nihombashi", "kayabacho", "monzennakacho",
+                "kiba", "toyocho", "nishifunabashi",
+            ],
+            avgIntervalMinutes: 2.5
+        ),
+        TransitLine(
+            id: "metro_chiyoda",
+            name: "メトロ千代田線",
+            company: "東京メトロ",
+            color: "#009944",
+            stationIds: [
+                "yoyogiuehara", "yoyogikoen", "meijijingumae",
+                "omotesando", "akasaka", "kokkaigijido", "kasumigaseki",
+                "hibiya", "otemachi", "shinochanomizu", "yushima",
+                "nezu", "sendagi", "nishinippori", "machiya",
+                "kitasenju", "ayase",
+            ],
+            avgIntervalMinutes: 2.5
+        ),
+        TransitLine(
+            id: "metro_namboku",
+            name: "メトロ南北線",
+            company: "東京メトロ",
+            color: "#00ADA9",
+            stationIds: [
+                "meguro", "shirokanedai", "shirokanetakanawa",
+                "azabujuban", "roppongiicchome", "tameikesanno",
+                "nagatacho", "yotsuya", "ichigaya", "iidabashi",
+                "korakuen", "todaimae", "komagome", "akabaneiwabuchi",
+            ],
+            avgIntervalMinutes: 3.0
+        ),
+        TransitLine(
+            id: "seibu_ikebukuro",
+            name: "西武池袋線",
+            company: "西武鉄道",
+            color: "#F5A623",
+            stationIds: [
+                "ikebukuro", "nerima", "shakujiikoen", "tokorozawa",
+            ],
+            avgIntervalMinutes: 3.5
+        ),
+        TransitLine(
+            id: "tobu_tojo",
+            name: "東武東上線",
+            company: "東武鉄道",
+            color: "#0068B7",
+            stationIds: [
+                "ikebukuro", "wakoshi", "shiki", "kawagoe",
+            ],
+            avgIntervalMinutes: 3.5
+        ),
+        TransitLine(
+            id: "keikyu",
+            name: "京急本線",
+            company: "京急電鉄",
+            color: "#E5171F",
+            stationIds: [
+                "shinagawa", "keikyukamata", "keikyukawasaki", "yokohama",
+            ],
+            avgIntervalMinutes: 2.5
+        ),
+        TransitLine(
+            id: "jr_sobu_local",
+            name: "JR総武線各停",
+            company: "JR東日本",
+            color: "#FFD400",
+            stationIds: [
+                "mitaka", "kichijoji", "ogikubo", "nakano", "shinjuku",
+                "yoyogi", "sendagaya", "shinanomachi", "yotsuya",
+                "ichigaya", "iidabashi", "suidobashi", "ochanomizu",
+                "akihabara", "ryogoku", "kinshicho", "funabashi", "chiba",
+            ],
+            avgIntervalMinutes: 2.5
         ),
     ]
 

@@ -174,6 +174,7 @@ enum PreferCondition: String, Codable, CaseIterable, Identifiable {
     case museum
     case park
     case hotel
+    case trash_bin // swiftlint:disable:this identifier_name
 
     var id: String { rawValue }
 
@@ -203,6 +204,7 @@ enum PreferCondition: String, Codable, CaseIterable, Identifiable {
         case .museum: return "美術館"
         case .park: return "公園"
         case .hotel: return "ホテル"
+        case .trash_bin: return "ゴミ箱"
         }
     }
 
@@ -232,6 +234,7 @@ enum PreferCondition: String, Codable, CaseIterable, Identifiable {
         case .museum: return "building.columns"
         case .park: return "leaf"
         case .hotel: return "bed.double"
+        case .trash_bin: return "trash"
         }
     }
 
@@ -262,6 +265,7 @@ enum PreferCondition: String, Codable, CaseIterable, Identifiable {
         case .museum: return "🖼️"
         case .park: return "🌳"
         case .hotel: return "🏨"
+        case .trash_bin: return "🗑️"
         }
     }
 
@@ -292,6 +296,7 @@ enum PreferCondition: String, Codable, CaseIterable, Identifiable {
         case .museum: return "周辺の美術館を表示"
         case .park: return "周辺の公園を表示"
         case .hotel: return "周辺のホテルを表示"
+        case .trash_bin: return "周辺の公共ゴミ箱を表示"
         }
     }
 }

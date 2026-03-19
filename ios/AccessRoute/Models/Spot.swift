@@ -28,6 +28,7 @@ enum SpotCategory: String, Codable, CaseIterable, Identifiable {
     case post_office // swiftlint:disable:this identifier_name
     case museum
     case hotel
+    case trash_bin // swiftlint:disable:this identifier_name
     case other
 
     var id: String { rawValue }
@@ -59,6 +60,7 @@ enum SpotCategory: String, Codable, CaseIterable, Identifiable {
         case .post_office: return "郵便局"
         case .museum: return "美術館"
         case .hotel: return "ホテル"
+        case .trash_bin: return "ゴミ箱"
         case .other: return "その他"
         }
     }
@@ -91,6 +93,7 @@ enum SpotCategory: String, Codable, CaseIterable, Identifiable {
         case .post_office: return "envelope"
         case .museum: return "building.columns"
         case .hotel: return "bed.double"
+        case .trash_bin: return "trash"
         case .other: return "mappin"
         }
     }
@@ -123,6 +126,7 @@ enum SpotCategory: String, Codable, CaseIterable, Identifiable {
         case .post_office: return .red
         case .museum: return Color(red: 0.4, green: 0.4, blue: 0.6)
         case .hotel: return Color(red: 0.3, green: 0.3, blue: 0.7)
+        case .trash_bin: return Color(red: 0.4, green: 0.4, blue: 0.4) // グレー
         case .other: return .secondary
         }
     }

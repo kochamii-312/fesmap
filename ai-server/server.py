@@ -4,6 +4,7 @@ FastAPIベースのAIチャット・ニーズ抽出サーバー。
 Hugging Face Inference API（OpenAI互換）経由でモデルを呼び出す。
 GPU不要で即座に起動可能。
 """
+from __future__ import annotations
 
 import asyncio
 import json

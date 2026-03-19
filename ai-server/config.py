@@ -3,6 +3,7 @@
 環境変数からHF Inference APIの設定を読み込む。
 開発環境ではHugging Face Inference API、本番環境では自前vLLMサーバーを使用。
 """
+from __future__ import annotations
 
 import logging
 import os

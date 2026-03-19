@@ -46,6 +46,36 @@ enum TransitRouteService {
     /// 乗り換えペナルティ（分）
     private static let transferPenaltyMinutes: Double = 3.0
 
+    /// 駅ごとの乗り換え時間を返す（分）
+    private static func transferTime(at stationId: String, from lineId1: String, to lineId2: String) -> Double {
+        // 大規模駅（乗り換えに時間がかかる）
+        let complexStations: [String: Double] = [
+            "shinjuku": 5.0,      // 新宿は広大で乗り換えが複雑
+            "tokyo": 5.0,         // 東京駅も同様
+            "ikebukuro": 4.0,     // 池袋
+            "shibuya": 4.0,       // 渋谷（ただし直通運転は0）
+            "otemachi": 4.0,      // 大手町（複数路線が離れている）
+            "yokohama": 4.0,      // 横浜
+        ]
+
+        // 同一ホーム乗り換え（簡単）
+        let easyTransfers: Set<String> = [
+            "kudanshita",   // 九段下（半蔵門線↔都営新宿線）
+            "iidabashi",    // 飯田橋
+            "kasuga",       // 春日
+        ]
+
+        if easyTransfers.contains(stationId) {
+            return 2.0
+        }
+
+        if let complex = complexStations[stationId] {
+            return complex
+        }
+
+        return transferPenaltyMinutes // デフォルト
+    }
+
     // MARK: - 公開API
 
     /// 電車ルートを検索
@@ -225,8 +255,11 @@ enum TransitRouteService {
                     let isThroughSvc = TokyoTransitData.isThroughService(
                         lineId1: line.id, lineId2: otherLine.id, atStation: ids[i]
                     )
+                    let penalty = isThroughSvc
+                        ? TokyoTransitData.throughServicePenalty(lineId1: line.id, lineId2: otherLine.id, atStation: ids[i])
+                        : transferTime(at: ids[i], from: line.id, to: otherLine.id)
                     adjacency[node]?.append(
-                        (transferNode, isThroughSvc ? 0.0 : transferPenaltyMinutes, !isThroughSvc)
+                        (transferNode, penalty, !isThroughSvc)
                     )
                 }
             }
@@ -337,7 +370,7 @@ enum TransitRouteService {
         var total: Double = 0
         for i in 0 ..< (path.count - 1) {
             if path[i + 1].isTransfer {
-                total += transferPenaltyMinutes
+                total += transferTime(at: path[i].stationId, from: path[i].lineId, to: path[i + 1].lineId)
             } else if path[i].stationId == path[i + 1].stationId {
                 // 同じ駅での路線変更（直通運転）：ペナルティなし
                 total += 0
@@ -371,20 +404,22 @@ enum TransitRouteService {
 
         for i in 1 ..< path.count {
             if path[i].isTransfer {
-                // 乗り換え：現在の区間を確定
+                // 乗り換え：乗り換え駅を現在の区間の最後に追加して確定
+                currentStationIds.append(path[i].stationId)
                 segments.append((currentLineId, currentStationIds, currentThroughServiceLineIds))
-                currentLineId = path[i].lineId
+                // 乗り換え先の路線IDは次のエントリから取得
+                let nextLineId = (i + 1 < path.count) ? path[i + 1].lineId : path[i].lineId
+                currentLineId = nextLineId
                 currentStationIds = [path[i].stationId]
-                currentThroughServiceLineIds = [path[i].lineId]
+                currentThroughServiceLineIds = [nextLineId]
             } else if path[i].lineId != currentLineId {
                 // 路線変更だが直通運転の場合は区間を分けない
                 let lastStationId = currentStationIds.last ?? ""
                 if TokyoTransitData.isThroughService(
                     lineId1: currentLineId, lineId2: path[i].lineId, atStation: lastStationId
                 ) {
-                    // 直通運転：区間を継続し路線IDだけ更新
+                    // 直通運転：区間を継続し路線IDだけ更新（駅は同一なので追加不要）
                     currentLineId = path[i].lineId
-                    currentStationIds.append(path[i].stationId)
                     if !currentThroughServiceLineIds.contains(path[i].lineId) {
                         currentThroughServiceLineIds.append(path[i].lineId)
                     }
@@ -396,7 +431,10 @@ enum TransitRouteService {
                     currentThroughServiceLineIds = [path[i].lineId]
                 }
             } else {
-                currentStationIds.append(path[i].stationId)
+                // 乗り換え直後の重複駅を防止
+                if path[i].stationId != currentStationIds.last {
+                    currentStationIds.append(path[i].stationId)
+                }
             }
         }
         segments.append((currentLineId, currentStationIds, currentThroughServiceLineIds))
@@ -418,10 +456,27 @@ enum TransitRouteService {
                 lineName = line?.name ?? "電車"
             }
 
-            // 方面（最後の駅名）を取得
+            // 方面（進行方向の終点駅名）を取得
             let lastStationId = segment.stationIds.last!
-            let lastStationName = TokyoTransitData.station(byId: lastStationId)?.name ?? ""
-            let directionLabel = "\(lineName)で\(lastStationName)方面"
+            let directionStationName: String
+            let lastLineId = segment.throughServiceLineIds.last ?? segment.lineId
+            if let activeLine = TokyoTransitData.lines.first(where: { $0.id == lastLineId }),
+               let lastIdx = activeLine.stationIds.firstIndex(of: lastStationId) {
+                // 区間内の別の駅から進行方向を判定
+                var refIdx: Int?
+                for stId in segment.stationIds.dropLast().reversed() {
+                    if let idx = activeLine.stationIds.firstIndex(of: stId) {
+                        refIdx = idx
+                        break
+                    }
+                }
+                let goingForward = refIdx.map { lastIdx > $0 } ?? (lastIdx > 0)
+                let terminalId = goingForward ? activeLine.stationIds.last! : activeLine.stationIds.first!
+                directionStationName = TokyoTransitData.station(byId: terminalId)?.name ?? ""
+            } else {
+                directionStationName = TokyoTransitData.station(byId: lastStationId)?.name ?? ""
+            }
+            let directionLabel = "\(lineName)で\(directionStationName)方面"
 
             let firstStation = TokyoTransitData.station(byId: segment.stationIds[0])
             let lastStation = TokyoTransitData.station(byId: lastStationId)
@@ -451,8 +506,21 @@ enum TransitRouteService {
 
             // 各駅間の乗車ステップ
             let stopsCount = segment.stationIds.count - 1
-            let avgInterval = line?.avgIntervalMinutes ?? 2.0
-            let durationMin = avgInterval * Double(stopsCount)
+            // 直通運転で路線が変わる場合、各区間の正しいavgIntervalMinutesを使用
+            var durationMin: Double = 0
+            for i in 0 ..< stopsCount {
+                let fromId = segment.stationIds[i]
+                let toId = segment.stationIds[i + 1]
+                var intervalMin: Double = 2.0
+                for lineId in segment.throughServiceLineIds {
+                    if let l = TokyoTransitData.lines.first(where: { $0.id == lineId }),
+                       l.stationIds.contains(fromId), l.stationIds.contains(toId) {
+                        intervalMin = l.avgIntervalMinutes
+                        break
+                    }
+                }
+                durationMin += intervalMin
+            }
 
             // 区間の総距離を計算
             var segmentDistance: Double = 0
@@ -502,11 +570,13 @@ enum TransitRouteService {
                 }
                 let nextLineName = nextLine?.name ?? "電車"
 
+                let transferStationId = segment.stationIds.last ?? ""
+                let transferDuration = transferTime(at: transferStationId, from: segment.lineId, to: nextSegment.lineId)
                 steps.append(RouteStep(
                     stepId: "transit_transfer_\(segIndex)",
                     instruction: "\(last.name)で\(nextLineName)に乗り換え",
                     distanceMeters: 0,
-                    durationSeconds: transferPenaltyMinutes * 60,
+                    durationSeconds: transferDuration * 60,
                     startLocation: LatLng(
                         lat: last.coordinate.latitude,
                         lng: last.coordinate.longitude
@@ -570,6 +640,9 @@ enum TransitRouteService {
     }
 
     /// 駅間を道路ポリラインで補間して滑らかなルートを構築
+    /// MKDirectionsの同時リクエスト数を制限してメモリ超過を防止
+    private static let maxConcurrentPolylineRequests = 3
+
     private static func buildDetailedPolyline(
         from path: [PathSegment]
     ) async -> [CLLocationCoordinate2D] {
@@ -577,20 +650,47 @@ enum TransitRouteService {
         let stationCoords = buildPolylineCoordinates(from: path)
         guard stationCoords.count >= 2 else { return stationCoords }
 
-        // Limit to max 5 segment lookups to avoid freezing
-        if stationCoords.count > 6 {
-            return stationCoords  // Use straight lines for long routes
+        let segmentCount = stationCoords.count - 1
+
+        // 極端に長いルートのみ直線にフォールバック
+        if segmentCount > 25 {
+            return stationCoords
         }
 
+        // バッチ単位で並列取得（同時リクエスト数を制限）
+        var segmentPolylines: [Int: [CLLocationCoordinate2D]] = [:]
+
+        for batchStart in stride(from: 0, to: segmentCount, by: maxConcurrentPolylineRequests) {
+            let batchEnd = min(batchStart + maxConcurrentPolylineRequests, segmentCount)
+
+            let batchResults: [Int: [CLLocationCoordinate2D]] = await withTaskGroup(
+                of: (Int, [CLLocationCoordinate2D]?).self
+            ) { group in
+                for i in batchStart ..< batchEnd {
+                    let from = stationCoords[i]
+                    let to = stationCoords[i + 1]
+                    group.addTask {
+                        let coords = await getRoutPolyline(from: from, to: to)
+                        return (i, coords)
+                    }
+                }
+
+                var results: [Int: [CLLocationCoordinate2D]] = [:]
+                for await (index, coords) in group {
+                    if let coords {
+                        results[index] = coords
+                    }
+                }
+                return results
+            }
+
+            segmentPolylines.merge(batchResults) { _, new in new }
+        }
+
+        // 順序通りにポリラインを結合
         var detailedCoords: [CLLocationCoordinate2D] = []
-
-        // 隣接する駅ペアごとに MKDirections（自動車）でポリラインを取得
-        for i in 0..<(stationCoords.count - 1) {
-            let from = stationCoords[i]
-            let to = stationCoords[i + 1]
-
-            if let segmentCoords = await getRoutPolyline(from: from, to: to) {
-                // 最初のセグメント以外は先頭の重複を除去
+        for i in 0 ..< segmentCount {
+            if let segmentCoords = segmentPolylines[i] {
                 if detailedCoords.isEmpty {
                     detailedCoords.append(contentsOf: segmentCoords)
                 } else {
@@ -599,9 +699,9 @@ enum TransitRouteService {
             } else {
                 // フォールバック: 直線で接続
                 if detailedCoords.isEmpty {
-                    detailedCoords.append(from)
+                    detailedCoords.append(stationCoords[i])
                 }
-                detailedCoords.append(to)
+                detailedCoords.append(stationCoords[i + 1])
             }
         }
 

@@ -3,6 +3,7 @@
 AIモデルの出力テキストから構造化JSONを抽出し、
 バリデーションとアクション判定を行う。
 """
+from __future__ import annotations
 
 import json
 import logging

@@ -168,6 +168,9 @@ enum MapSpotSearchService {
                 queries.append(("公園", .park))
             case .hotel:
                 queries.append(("ホテル", .hotel))
+            case .trash_bin:
+                queries.append(("公共ゴミ箱", .trash_bin))
+                queries.append(("ごみ箱", .trash_bin))
             }
         }
 
