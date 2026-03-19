@@ -100,20 +100,25 @@ final class HomeViewModel: ObservableObject {
 
         let coordinate = CLLocationCoordinate2D(latitude: lat, longitude: lng)
 
-        // MKLocalSearch でユーザーの好みに基づいたリアルなスポットを検索
-        let spots = await MapSpotSearchService.searchPreferredSpots(
-            near: coordinate,
-            radius: 500
-        )
+        let task = Task {
+            // MKLocalSearch でユーザーの好みに基づいたリアルなスポットを検索
+            let spots = await MapSpotSearchService.searchPreferredSpots(
+                near: coordinate,
+                radius: 500
+            )
 
-        if spots.isEmpty {
-            // スポットが見つからない場合はモックデータ
-            nearbySpots = Self.mockNearbySpots()
-        } else {
-            nearbySpots = spots
+            guard !Task.isCancelled else { return }
+
+            if spots.isEmpty {
+                nearbySpots = []
+            } else {
+                nearbySpots = spots
+            }
+
+            isSearching = false
         }
-
-        isSearching = false
+        searchTask = task
+        await task.value
     }
 
     // 逆ジオコーディングで現在地住所を取得

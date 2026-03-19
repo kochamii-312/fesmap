@@ -11,15 +11,12 @@ enum MapSpotSearchService {
     ) async -> [SpotSummary] {
         // プロフィール設定を基準に、マップフィルターで絞り込む
         var needs = UserNeedsService.loadUnifiedNeeds()
-        if let mapFilters = UserDefaults.standard.stringArray(forKey: "mapActiveFilters"),
-           !mapFilters.isEmpty {
-            // マップフィルターでオンのもののみ使用
+        if let mapFilters = UserDefaults.standard.stringArray(forKey: "mapActiveFilters") {
+            // マップフィルターが設定済み（空配列含む）の場合はフィルターを適用
             let profileSet = Set(needs.preferConditions.map(\.rawValue))
             let activeSet = Set(mapFilters).intersection(profileSet)
-            if !activeSet.isEmpty {
-                needs.preferConditions = activeSet.compactMap { PreferCondition(rawValue: $0) }
-            }
-            // activeSet が空の場合はプロフィール設定をそのまま使用
+            // activeSet が空 → 全フィルターOFF → スポット非表示
+            needs.preferConditions = activeSet.compactMap { PreferCondition(rawValue: $0) }
         }
 
         var allSpots: [SpotSummary] = []

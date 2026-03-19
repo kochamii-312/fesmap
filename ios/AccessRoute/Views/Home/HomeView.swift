@@ -520,6 +520,7 @@ struct SpotFilterSheet: View {
     private static let mapFilterKey = "mapActiveFilters"
 
     @State private var activeFilters: Set<String> = []
+    @State private var refreshTask: Task<Void, Never>?
 
     // プロフィールで選択されたおすすめリスト項目のみ表示
     private var profilePreferConditions: [PreferCondition] {
@@ -618,8 +619,13 @@ struct SpotFilterSheet: View {
     private func saveAndRefresh() {
         // マップ表示フィルターのみ保存（プロフィール設定は変えない）
         UserDefaults.standard.set(Array(activeFilters), forKey: Self.mapFilterKey)
+
+        // 連打対策: 前の検索タスクをキャンセルして300msデバウンス
+        refreshTask?.cancel()
         let loc = locationManager.locationOrDefault
-        Task {
+        refreshTask = Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
             await viewModel.searchNearbySpots(lat: loc.latitude, lng: loc.longitude)
         }
     }

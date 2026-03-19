@@ -76,7 +76,7 @@ enum AppConfig {
     static var aiServerURL: String {
         switch environment {
         case .development:
-            return "http://192.168.10.165:8000"
+            return "http://localhost:8000"
         case .staging, .production:
             return "https://asia-northeast1-accessroute-18207.cloudfunctions.net/api/api"
         }
