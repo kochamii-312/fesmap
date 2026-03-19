@@ -1,6 +1,6 @@
 import Foundation
 import CoreLocation
-import MapKit
+@preconcurrency import MapKit
 
 // ジオコーディングサービス
 // 5段フォールバック: 既知地名 → キャッシュ → Backend API → Nominatim → MKLocalSearch

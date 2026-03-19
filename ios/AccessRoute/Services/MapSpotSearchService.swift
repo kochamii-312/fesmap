@@ -1,5 +1,5 @@
 import Foundation
-import MapKit
+@preconcurrency import MapKit
 
 // スポット検索キャッシュ（同エリア再検索時に結果を安定させる）
 private final class SpotSearchCache: @unchecked Sendable {

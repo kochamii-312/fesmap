@@ -1,5 +1,5 @@
 import SwiftUI
-import MapKit
+@preconcurrency import MapKit
 
 // 目的地周辺のおすすめスポット一覧画面
 struct DestinationSpotsView: View {

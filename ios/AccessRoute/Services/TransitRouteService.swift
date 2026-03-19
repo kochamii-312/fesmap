@@ -1,5 +1,5 @@
 import Foundation
-import MapKit
+@preconcurrency import MapKit
 
 // 電車ルート検索サービス
 // TokyoTransitData を使ったグラフベースのルート探索

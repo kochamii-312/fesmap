@@ -1,7 +1,7 @@
 import Foundation
 import Combine
 import CoreLocation
-import MapKit
+@preconcurrency import MapKit
 
 // チャットメッセージの構造体（UI表示用）
 struct AppChatMessage: Identifiable {

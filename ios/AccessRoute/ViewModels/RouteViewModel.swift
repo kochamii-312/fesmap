@@ -1,5 +1,5 @@
 import Foundation
-import MapKit
+@preconcurrency import MapKit
 import SwiftUI
 
 // ルート検索画面のViewModel

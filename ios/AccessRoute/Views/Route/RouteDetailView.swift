@@ -1,5 +1,5 @@
 import SwiftUI
-import MapKit
+@preconcurrency import MapKit
 
 // ルート詳細画面
 struct RouteDetailView: View {
