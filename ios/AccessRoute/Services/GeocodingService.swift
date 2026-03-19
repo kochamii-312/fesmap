@@ -246,7 +246,7 @@ actor GeocodingService {
     }
 
     // MKLocalSearch（Apple Maps）でジオコーディング
-    private func geocodeWithMapKit(_ placeName: String) async -> LatLng? {
+    private nonisolated func geocodeWithMapKit(_ placeName: String) async -> LatLng? {
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = placeName
         request.region = MKCoordinateRegion(
