@@ -77,6 +77,12 @@ final class ChatViewModel: ObservableObject {
                 }
             }
 
+            // AIサーバーへのリクエストとMapKit検索を並行実行
+            let conversationHistory = self.messages.map {
+                AIServerMessage(role: $0.role.rawValue, content: $0.content)
+            }
+            async let aiReplyTask = self.fetchAIReply(history: conversationHistory)
+
             let queries = Self.extractSearchQueries(from: messageText)
 
             // メッセージから場所名を検出してジオコーディング
@@ -124,8 +130,20 @@ final class ChatViewModel: ObservableObject {
 
             guard !Task.isCancelled else { return }
 
-            // @MainActor クラスなのでそのままUI更新可能
-            if allSpots.isEmpty {
+            // AI応答を取得（サーバー未起動ならnil）
+            let aiReply = await aiReplyTask
+
+            // AI応答があればそれを使い、なければ従来テンプレートにフォールバック
+            if let aiReply = aiReply {
+                let spotIds = allSpots.map(\.id)
+                self.messages.append(AppChatMessage(
+                    role: .assistant,
+                    content: aiReply,
+                    spots: allSpots,
+                    followupQuestion: Self.generateFollowup(for: messageText),
+                    showOnMapAction: allSpots.isEmpty ? nil : ShowOnMapAction(type: "show", spotIds: spotIds)
+                ))
+            } else if allSpots.isEmpty {
                 self.messages.append(AppChatMessage(
                     role: .assistant,
                     content: "\(locationLabel)周辺で「\(messageText)」に関連するスポットが見つかりませんでした。別のキーワードや場所で試してみてください。",
@@ -142,6 +160,21 @@ final class ChatViewModel: ObservableObject {
                     showOnMapAction: ShowOnMapAction(type: "show", spotIds: spotIds)
                 ))
             }
+        }
+    }
+
+    // MARK: - AI応答取得
+
+    // AIサーバーから応答を取得（失敗時はnilを返してフォールバック）
+    private func fetchAIReply(history: [AIServerMessage]) async -> String? {
+        do {
+            let response = try await APIService.shared.sendAIChatMessage(
+                messages: history
+            )
+            return response.reply
+        } catch {
+            // AIサーバー未起動・タイムアウト等 → ローカルフォールバック
+            return nil
         }
     }
 

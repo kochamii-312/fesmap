@@ -257,7 +257,51 @@ actor APIService {
         }
     }
 
-    // MARK: - AIチャット
+    // MARK: - AIサーバー直接通信（/v1/chat）
+
+    // AIサーバーに直接チャットメッセージを送信（認証不要）
+    func sendAIChatMessage(messages: [AIServerMessage]) async throws -> AIServerChatResponse {
+        let aiBaseURL = AppConfig.aiServerURL
+        guard let url = URL(string: aiBaseURL + "/v1/chat") else {
+            throw APIError.invalidURL
+        }
+
+        let chatRequest = AIServerChatRequest(
+            messages: messages,
+            maxTokens: 512,
+            temperature: 0.7,
+            stream: false
+        )
+
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.timeoutInterval = 15
+        urlRequest.httpBody = try encoder.encode(chatRequest)
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: urlRequest)
+        } catch {
+            throw APIError.networkError(error)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw APIError.serverError(
+                (response as? HTTPURLResponse)?.statusCode ?? 0
+            )
+        }
+
+        do {
+            return try decoder.decode(AIServerChatResponse.self, from: data)
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+
+    // MARK: - AIチャット（Backend経由）
 
     // チャットメッセージ送信
     func sendChatMessage(

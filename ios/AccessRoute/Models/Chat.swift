@@ -131,3 +131,31 @@ struct ShowOnMapAction: Codable {
     let type: String
     let spotIds: [String]
 }
+
+// MARK: - AIサーバー直接通信用モデル（/v1/chat）
+
+/// AIサーバーへ送るメッセージ（OpenAI互換形式）
+struct AIServerMessage: Codable {
+    let role: String
+    let content: String
+}
+
+/// AIサーバー `/v1/chat` へのリクエスト
+struct AIServerChatRequest: Codable {
+    let messages: [AIServerMessage]
+    let maxTokens: Int
+    let temperature: Double
+    let stream: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case messages
+        case maxTokens = "max_tokens"
+        case temperature
+        case stream
+    }
+}
+
+/// AIサーバー `/v1/chat` からのレスポンス（replyのみ使用）
+struct AIServerChatResponse: Codable {
+    let reply: String
+}
