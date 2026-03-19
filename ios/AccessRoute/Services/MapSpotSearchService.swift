@@ -1,14 +1,64 @@
 import Foundation
 import MapKit
 
+// スポット検索キャッシュ（同エリア再検索時に結果を安定させる）
+private final class SpotSearchCache: @unchecked Sendable {
+    static let shared = SpotSearchCache()
+
+    private struct Entry {
+        let spots: [SpotSummary]
+        let timestamp: Date
+    }
+
+    private var storage: [String: Entry] = [:]
+    private let expiry: TimeInterval = 600 // 10分
+
+    func get(key: String) -> [SpotSummary]? {
+        guard let entry = storage[key],
+              Date().timeIntervalSince(entry.timestamp) < expiry else {
+            return nil
+        }
+        return entry.spots
+    }
+
+    func set(key: String, spots: [SpotSummary]) {
+        storage[key] = Entry(spots: spots, timestamp: Date())
+    }
+
+    static func cacheKey(
+        coordinate: CLLocationCoordinate2D, filterKey: String
+    ) -> String {
+        // ~100m精度のグリッドキー + フィルター状態
+        let latKey = Int(coordinate.latitude * 100)
+        let lngKey = Int(coordinate.longitude * 100)
+        return "\(latKey)_\(lngKey)_\(filterKey)"
+    }
+}
+
 // MapKit のローカル検索でリアルなスポットを検索するサービス
 enum MapSpotSearchService {
+
+    /// 座標ベースの安定IDを生成（同じ場所は毎回同じID）
+    private static func stableSpotId(
+        prefix: String, lat: Double, lng: Double
+    ) -> String {
+        let latKey = Int(lat * 100_000) // ~1m精度
+        let lngKey = Int(lng * 100_000)
+        return "\(prefix)_\(latKey)_\(lngKey)"
+    }
 
     // ユーザーの好みに基づいてスポットを検索
     static func searchPreferredSpots(
         near coordinate: CLLocationCoordinate2D,
         radius: Double = 500
     ) async -> [SpotSummary] {
+        // キャッシュ確認（同エリア・10分以内なら再利用）
+        let filterKey = UserDefaults.standard.stringArray(forKey: "mapActiveFilters")?.sorted().joined(separator: ",") ?? ""
+        let cacheKey = SpotSearchCache.cacheKey(coordinate: coordinate, filterKey: filterKey)
+        if let cached = SpotSearchCache.shared.get(key: cacheKey) {
+            return cached
+        }
+
         // プロフィール設定を基準に、マップフィルターで絞り込む
         var needs = UserNeedsService.loadUnifiedNeeds()
         if let mapFilters = UserDefaults.standard.stringArray(forKey: "mapActiveFilters") {
@@ -86,10 +136,15 @@ enum MapSpotSearchService {
         }
 
         // スコア順でソート
-        return scored
+        let results = scored
             .sorted { $0.relevanceScore > $1.relevanceScore }
             .prefix(15)
             .map(\.spot)
+
+        // キャッシュに保存
+        SpotSearchCache.shared.set(key: cacheKey, spots: results)
+
+        return results
     }
 
     // 目的地周辺のスポットを検索
@@ -226,7 +281,7 @@ enum MapSpotSearchService {
 
                 let isBarrierFree = estimateBarrierFree(for: item, category: category)
                 return SpotSummary(
-                    spotId: "mk_\(UUID().uuidString.prefix(8))",
+                    spotId: stableSpotId(prefix: "mk", lat: itemCoord.latitude, lng: itemCoord.longitude),
                     name: name,
                     category: category,
                     location: LatLng(lat: itemCoord.latitude, lng: itemCoord.longitude),
@@ -324,7 +379,7 @@ enum MapSpotSearchService {
                 guard distance <= radius else { return nil }
 
                 return SpotSummary(
-                    spotId: "yolp_\(feature.Property?.Gid ?? UUID().uuidString.prefix(8).description)",
+                    spotId: feature.Property?.Gid ?? stableSpotId(prefix: "yolp", lat: lat, lng: lng),
                     name: name,
                     category: category,
                     location: LatLng(lat: lat, lng: lng),
