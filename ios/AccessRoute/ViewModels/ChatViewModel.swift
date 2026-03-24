@@ -208,21 +208,12 @@ final class ChatViewModel: ObservableObject {
                     followupQuestion: Self.generateFollowup(for: messageText),
                     showOnMapAction: allSpots.isEmpty ? nil : ShowOnMapAction(type: "show", spotIds: spotIds)
                 ))
-            } else if allSpots.isEmpty {
-                self.messages.append(AppChatMessage(
-                    role: .assistant,
-                    content: "学園祭の企画（模擬店、ステージなど）について探したけど、今はそれに関連する情報が見つからなかったよ。企画名や場所（11棟など）を教えてくれるかな？",
-                    followupQuestion: "11棟のおすすめを教えて"
-                ))
             } else {
-                let spotNames = allSpots.prefix(3).map(\.name).joined(separator: "、")
-                let spotIds = allSpots.map(\.id)
+                // AIサーバーからの応答がない（スリープ中、通信エラーなど）
                 self.messages.append(AppChatMessage(
                     role: .assistant,
-                    content: "学園祭の情報を探してみたよ！近くには \(allSpots.count) 件の企画やスポットがあるみたい。\n\n\(spotNames) などがおすすめだよ！気になるものはあるかな？",
-                    spots: allSpots,
-                    followupQuestion: "場所を詳しく教えて",
-                    showOnMapAction: ShowOnMapAction(type: "show", spotIds: spotIds)
+                    content: "ごめんね！今「フェス君」の準備をしているところなんだ。Render（サーバー）が起きるまで30秒〜1分くらいかかることがあるから、少し時間をおいてもう一度話しかけてみてね！",
+                    followupQuestion: "もう一度送ってみる"
                 ))
             }
         }
