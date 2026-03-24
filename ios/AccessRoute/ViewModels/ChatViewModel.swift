@@ -19,6 +19,9 @@ final class ChatViewModel: ObservableObject {
     @Published var messages: [AppChatMessage] = []
     @Published var inputText: String = ""
     @Published var isLoading: Bool = false
+    
+    // 学園祭企画データセット
+    private var allProjects: [FestivalProject] = []
 
     private var locationManager: LocationManager
     private var appState: AppState
@@ -38,11 +41,44 @@ final class ChatViewModel: ObservableObject {
     ) {
         self.locationManager = locationManager
         self.appState = appState
+        
+        // 企画データの読み込み
+        loadFestivalProjects()
 
         messages.append(AppChatMessage(
             role: .assistant,
             content: "学園祭コンシェルジュの「フェス君」だよ！\n行きたい企画（模擬店、ライブ、展示など）のことや、場所、バリアフリー情報について何でも聞いてね！\n例：「おすすめの模擬店は？」「11棟への行き方」「車椅子で入れる展示」"
         ))
+    }
+    
+    private func loadFestivalProjects() {
+        // 本来はサーバーから取得するが、今回は検証用にローカルファイルを読み込む（または手動で数件定義）
+        // ここでは AIサーバーと同じデータをシミュレート
+        self.allProjects = [
+            FestivalProject(projectId: "p001", name: "爆速たこ焼き", organization: "テニスサークル", description: "外はカリッと、中はトロッと！", classification: "stall", form: "stall", location: "stall_road", detailedLocation: "模擬店ロード B-12", latitude: 35.6048, longitude: 139.6845, isAccessible: true, tags: ["グルメ", "人気"], startTime: "10:00", endTime: "18:00"),
+            FestivalProject(projectId: "p002", name: "JAZZ Big Band Live", organization: "ジャズ研究会", description: "迫力あるビッグバンド演奏！", classification: "stage_event", form: "stage", location: "stage_area", detailedLocation: "メインステージ", latitude: 35.6055, longitude: 139.6835, isAccessible: true, tags: ["音楽", "ライブ"], startTime: "13:00", endTime: "14:30"),
+            FestivalProject(projectId: "p003", name: "VR体験：宇宙旅行", organization: "物理学研究会", description: "最新VRで宇宙の果てまで！", classification: "general", form: "experience", location: "b11", detailedLocation: "11棟 301教室", latitude: 35.6062, longitude: 139.6852, isAccessible: false, tags: ["体験", "科学"], startTime: "10:00", endTime: "17:00"),
+            FestivalProject(projectId: "p004", name: "古着チャリティセール", organization: "ボランティアサークル", description: "掘り出し物が見つかるかも！", classification: "general", form: "exhibit", location: "b12", detailedLocation: "12棟 1Fロビー", latitude: 35.6058, longitude: 139.6840, isAccessible: true, tags: ["ショッピング"], startTime: "11:00", endTime: "16:00"),
+            FestivalProject(projectId: "p005", name: "激辛カレー対決", organization: "激辛同好会", description: "あなたはどこまで耐えられるか…！？", classification: "stall", form: "stall", location: "ground", detailedLocation: "グラウンド 模擬店ブースC", latitude: 35.6042, longitude: 139.6828, isAccessible: true, tags: ["グルメ", "カレー"], startTime: "10:00", endTime: "18:00")
+        ]
+    }
+    
+    // キーワードから企画を検索する
+    private func searchFestivalProjects(query: String) -> [RecommendedSpot] {
+        return allProjects.filter { project in
+            project.name.contains(query) || 
+            project.description.contains(query) || 
+            project.tags.contains(where: { $0.contains(query) }) ||
+            project.detailedLocation.contains(query)
+        }.map { project in
+            RecommendedSpot(
+                id: project.projectId,
+                name: project.name,
+                reason: "\(project.detailedLocation)で実施中！",
+                latitude: project.latitude,
+                longitude: project.longitude
+            )
+        }
     }
 
     // MARK: - メッセージ送信
@@ -92,19 +128,26 @@ final class ChatViewModel: ObservableObject {
             let locationLabel = detectedLocation != nil
                 ? Self.extractPlaceName(from: messageText) ?? "指定地点"
                 : "現在地"
+            
             var allSpots: [RecommendedSpot] = []
-
-            // バックグラウンドで検索（最大3件のクエリに制限）
-            for query in queries.prefix(3) {
-                guard !Task.isCancelled else { return }
-                let spots = await self.searchMapKit(
-                    query: query.keyword,
-                    near: searchLocation,
-                    reason: query.reason
-                )
-                allSpots.append(contentsOf: spots)
+            
+            // 学園祭企画を検索
+            let festivalSpots = self.searchFestivalProjects(query: messageText)
+            allSpots.append(contentsOf: festivalSpots)
+            
+            // もし企画が見つからない場合は、建物名などで再度検索を試みる
+            if allSpots.isEmpty {
+                let locations = ["11棟", "12棟", "14棟", "グラウンド", "ステージ", "模擬店ロード"]
+                for loc in locations {
+                    if messageText.contains(loc) {
+                        allSpots.append(contentsOf: self.searchFestivalProjects(query: loc))
+                    }
+                }
             }
-
+            
+            // 従来のMapKit検索はバックアップとして残すか、または完全に置き換える
+            // 今回は学園祭仕様なので、MapKit検索は行わない（または限定的にする）
+            
             // 重複除去
             var seen = Set<String>()
             allSpots = allSpots.filter { spot in
@@ -382,16 +425,16 @@ final class ChatViewModel: ObservableObject {
     nonisolated private static func extractSearchQueries(from message: String) -> [SearchQuery] {
         var queries: [SearchQuery] = []
 
-        // カフェ関連
-        let cafeKeywords = ["カフェ", "コーヒー", "珈琲", "喫茶", "スタバ", "cafe"]
-        if cafeKeywords.contains(where: { message.contains($0) }) {
-            queries.append(SearchQuery(keyword: "カフェ", reason: "カフェのおすすめ"))
+        // 模擬店・食べ物関連
+        let foodKeywords = ["模擬店", "屋台", "食べ", "飲", "たこ焼き", "カレー", "グルメ", "ランチ", "ご飯"]
+        if foodKeywords.contains(where: { message.contains($0) }) {
+            queries.append(SearchQuery(keyword: "模擬店", reason: "模擬店（食べ物・飲み物）"))
         }
 
-        // レストラン・食事関連
-        let foodKeywords = ["レストラン", "ランチ", "ディナー", "食事", "ご飯", "食べ", "料理"]
-        if foodKeywords.contains(where: { message.contains($0) }) {
-            queries.append(SearchQuery(keyword: "レストラン", reason: "食事のおすすめ"))
+        // ステージ・ライブ関連
+        let stageKeywords = ["ステージ", "ライブ", "演奏", "音楽", "パフォーマンス", "ダンス", "JAZZ"]
+        if stageKeywords.contains(where: { message.contains($0) }) {
+            queries.append(SearchQuery(keyword: "ステージ", reason: "ステージ企画・パフォーマンス"))
         }
 
         // ラーメン
@@ -587,11 +630,18 @@ final class ChatViewModel: ObservableObject {
     // MARK: - フォローアップ質問生成
 
     nonisolated private static func generateFollowup(for message: String) -> String? {
-        if message.contains("カフェ") { return "車椅子で入れるカフェはある？" }
-        if message.contains("レストラン") || message.contains("食事") { return "バリアフリー対応のレストランは？" }
-        if message.contains("トイレ") { return "近くのカフェも教えて" }
-        if message.contains("公園") { return "ベンチがある休憩スポットは？" }
-        if message.contains("駅") { return "エレベーターがある出口はどこ？" }
-        return "他に探したいものはありますか？"
+        if message.contains("模擬店") || message.contains("食べ") || message.contains("たこ焼き") {
+            return "おすすめの模擬店を教えて！"
+        }
+        if message.contains("11棟") || message.contains("b11") {
+            return "11棟でやってる体験企画は？"
+        }
+        if message.contains("ステージ") || message.contains("ライブ") {
+            return "次のステージの開始時間は？"
+        }
+        if message.contains("トイレ") || message.contains("車椅子") {
+            return "近くの多目的トイレはどこ？"
+        }
+        return "他におすすめの企画はあるかな？"
     }
 }

@@ -169,6 +169,8 @@ export interface FestivalProject {
   form: ProjectForm;
   location: ProjectLocation;
   detailedLocation: string; // 詳細（例: 「11棟203教室」）
+  latitude: number;         // 緯度
+  longitude: number;        // 経度
   isAccessible: boolean;    // バリアフリー対応
   tags: string[];           // 検索用タグ
   startTime?: string;       // ステージ企画などの開始時間

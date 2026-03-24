@@ -203,13 +203,11 @@ struct ChatView: View {
     // MARK: - ウェルカムメッセージ
 
     private let initialSuggestions = [
-        "車椅子で東京駅に行きたい",
-        "近くのバリアフリートイレを探して",
-        "ベビーカーで移動しやすいルートは？",
-        "エレベーターのある駅を教えて",
-        "高齢者と一緒に観光したい",
-        "雨の日でも歩きやすいルートは？",
-        "休憩できる場所を探して",
+        "おすすめの模擬店を教えて！",
+        "11棟でやってる体験企画は？",
+        "次のステージの開始時間は？",
+        "近くの多目的トイレはどこ？",
+        "他におすすめの企画はあるかな？",
     ]
 
     private var welcomeMessage: some View {
@@ -220,7 +218,7 @@ struct ChatView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.blue.opacity(0.6))
 
-            Text("AIチャットに\n旅行の相談をしてみましょう")
+            Text("AIチャットに\n行き先の相談をしてみましょう")
                 .font(.title3)
                 .fontWeight(.medium)
                 .multilineTextAlignment(.center)
