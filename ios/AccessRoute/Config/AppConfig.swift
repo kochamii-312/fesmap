@@ -77,7 +77,7 @@ enum AppConfig {
         switch environment {
         case .development:
             // 開発中（Macで実行中）はngrokを使う（ログが確認しやすい！）
-            return "https://unopiatic-vonnie-compressibly.ngrok-free.dev"
+            return "https://fesmap.onrender.com" //"https://unopiatic-vonnie-compressibly.ngrok-free.dev"
         case .staging, .production:
             // 本番・テスト配布時はRender（クラウド）を使う
             return "https://fesmap.onrender.com" // ←ここをご自身のURLに！

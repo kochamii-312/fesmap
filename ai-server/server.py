@@ -256,8 +256,10 @@ async def chat(request: AIChatRequest):
         )
 
     except Exception as e:
-        logger.error("チャット応答生成に失敗: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        error_msg = f"AI Server Error: {str(e)}"
+        logger.error(f"[CRITICAL] {error_msg}", exc_info=True)
+        # 具体的なエラー原因をレスポンスに含める（開発デバッグ用）
+        raise HTTPException(status_code=500, detail=error_msg)
 
 
 async def _stream_chat(
