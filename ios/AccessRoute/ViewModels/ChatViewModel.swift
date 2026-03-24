@@ -41,7 +41,7 @@ final class ChatViewModel: ObservableObject {
 
         messages.append(AppChatMessage(
             role: .assistant,
-            content: "行きたい場所について、自由に入力してください。\n例：「静かで桜が見れる場所」「車いすで入れるカフェ」"
+            content: "学園祭コンシェルジュの「フェス君」だよ！\n行きたい企画（模擬店、ライブ、展示など）のことや、場所、バリアフリー情報について何でも聞いてね！\n例：「おすすめの模擬店は？」「11棟への行き方」「車椅子で入れる展示」"
         ))
     }
 
@@ -146,17 +146,17 @@ final class ChatViewModel: ObservableObject {
             } else if allSpots.isEmpty {
                 self.messages.append(AppChatMessage(
                     role: .assistant,
-                    content: "\(locationLabel)周辺で「\(messageText)」に関連するスポットが見つかりませんでした。別のキーワードや場所で試してみてください。",
-                    followupQuestion: "渋谷のカフェを探して"
+                    content: "学園祭の企画（模擬店、ステージなど）について探したけど、今はそれに関連する情報が見つからなかったよ。企画名や場所（11棟など）を教えてくれるかな？",
+                    followupQuestion: "11棟のおすすめを教えて"
                 ))
             } else {
                 let spotNames = allSpots.prefix(3).map(\.name).joined(separator: "、")
                 let spotIds = allSpots.map(\.id)
                 self.messages.append(AppChatMessage(
                     role: .assistant,
-                    content: "\(locationLabel)周辺で\(allSpots.count)件のスポットが見つかりました。\n\n\(spotNames) などがおすすめです。",
+                    content: "学園祭の情報を探してみたよ！近くには \(allSpots.count) 件の企画やスポットがあるみたい。\n\n\(spotNames) などがおすすめだよ！気になるものはあるかな？",
                     spots: allSpots,
-                    followupQuestion: Self.generateFollowup(for: messageText),
+                    followupQuestion: "場所を詳しく教えて",
                     showOnMapAction: ShowOnMapAction(type: "show", spotIds: spotIds)
                 ))
             }
@@ -171,9 +171,11 @@ final class ChatViewModel: ObservableObject {
             let response = try await APIService.shared.sendAIChatMessage(
                 messages: history
             )
+            print("[ChatVM] AI Server Success: \(response.reply)")
             return response.reply
         } catch {
             // AIサーバー未起動・タイムアウト等 → ローカルフォールバック
+            print("[ChatVM] AI Server Error: \(error.localizedDescription)")
             return nil
         }
     }

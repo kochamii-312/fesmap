@@ -15,7 +15,7 @@ export default function TabsLayout() {
         options={{
           title: 'ホーム',
           tabBarIcon: ({ color, size }) => <Ionicons name="map" size={size} color={color} />,
-          headerTitle: 'AccessRoute',
+          headerTitle: 'フェスマップ',
         }}
       />
       <Tabs.Screen

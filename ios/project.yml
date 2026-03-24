@@ -1,6 +1,6 @@
-name: AccessRoute
+name: FesMap
 options:
-  bundleIdPrefix: com.accessroute
+  bundleIdPrefix: com.fesmap
   deploymentTarget:
     iOS: "18.0"
   xcodeVersion: "16.0"

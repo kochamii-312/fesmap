@@ -40,12 +40,12 @@ struct LoginView: View {
     // ヘッダー部分
     private var headerSection: some View {
         VStack(spacing: 8) {
-            Text("AccessRoute")
+            Text("フェスマップ")
                 .font(.largeTitle)
                 .fontWeight(.bold)
                 .foregroundStyle(.blue)
 
-            Text("バリアフリーナビ")
+            Text("学園祭コンシェルジュ")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }

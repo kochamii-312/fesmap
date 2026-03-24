@@ -64,7 +64,12 @@ class ModelConfig:
 
     def __post_init__(self) -> None:
         """環境に応じてbase_urlとapi_keyを設定する。"""
-        if self.env == "production":
+        # OpenAIが設定されている場合を最優先
+        openai_key = os.getenv("OPENAI_API_KEY")
+        if openai_key:
+            url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+            key = openai_key
+        elif self.env == "production":
             url = os.getenv("VLLM_BASE_URL", "http://localhost:8000/v1")
             key = os.getenv("API_KEY", "dummy")
         else:

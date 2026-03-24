@@ -240,7 +240,7 @@ function generateMockResponse(message: string, conversationLength: number = 0): 
       };
     }
     return {
-      reply: 'こんにちは！AccessRouteのAIコンシェルジュです。バリアフリーのルート検索やスポット案内など、お気軽にご相談ください。車椅子、ベビーカー、杖をお使いの方など、どなたでもお手伝いいたします。',
+      reply: 'こんにちは！学園祭コンシェルジュの「フェス君」だよ！行きたい企画のことや、場所の案内、バリアフリー情報について何でも聞いてね！',
       extractedNeeds: needs,
     };
   }
@@ -248,7 +248,7 @@ function generateMockResponse(message: string, conversationLength: number = 0): 
   // --- ヘルプ系 ---
   if (categories.includes('help')) {
     return {
-      reply: 'AccessRouteでは以下のことができます：\n\n• バリアフリールートの検索（段差・階段を避けるルート）\n• 車椅子対応トイレ・多機能トイレの検索\n• バリアフリー対応スポット・レストランの検索\n• エレベーター・スロープのある駅出口のご案内\n• お身体の状況に合わせた最適ルートのご提案\n\n何かお探しのことはありますか？',
+      reply: 'フェスマップではこんなことができるよ：\n\n• おすすめの企画探し（たこ焼き、ライブ、体験など）\n• 企画が行われている場所（11棟、グラウンドなど）の案内\n• 車椅子やベビーカーでも安心なルートの確認\n• 多目的トイレや休憩所の場所のご案内\n\n今日はどんなことを楽しみたいかな？',
       extractedNeeds: needs,
     };
   }

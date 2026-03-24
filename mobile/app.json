@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "AccessRoute",
-    "slug": "accessroute",
+    "name": "フェスマップ",
+    "slug": "fesmap",
     "version": "1.0.0",
     "platforms": ["ios", "android", "web"],
     "orientation": "portrait",

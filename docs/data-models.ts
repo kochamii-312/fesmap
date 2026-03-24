@@ -152,8 +152,25 @@ export interface ExtractNeedsRequest {
   conversationHistory: ChatMessage[];
 }
 
-export interface ExtractNeedsResponse {
-  needs: Partial<UserProfile>;
-  confidence: number; // 0.0-1.0
-  missingFields: string[]; // まだ聞けていない情報
+// ============================================================
+// 学園祭（フェスマップ）関連
+// ============================================================
+
+export type ProjectClassification = "stage_event" | "general" | "stall"; // 区分: ステージ企画、一般企画、模擬店
+export type ProjectForm = "stage" | "stall" | "exhibit" | "experience" | "other"; // 形態: ステージ、模擬店、展示、体験、その他
+export type ProjectLocation = "b11" | "b12" | "b14" | "ground" | "stall_road" | "stage_area" | "other"; // 場所
+
+export interface FestivalProject {
+  projectId: string;
+  name: string;            // 企画名
+  organization: string;    // 団体名
+  description: string;     // 内容紹介
+  classification: ProjectClassification;
+  form: ProjectForm;
+  location: ProjectLocation;
+  detailedLocation: string; // 詳細（例: 「11棟203教室」）
+  isAccessible: boolean;    // バリアフリー対応
+  tags: string[];           // 検索用タグ
+  startTime?: string;       // ステージ企画などの開始時間
+  endTime?: string;
 }

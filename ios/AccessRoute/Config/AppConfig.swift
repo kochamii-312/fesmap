@@ -75,10 +75,8 @@ enum AppConfig {
     // AIサーバーURL
     static var aiServerURL: String {
         switch environment {
-        case .development:
-            return "http://localhost:8000"
-        case .staging, .production:
-            return "https://asia-northeast1-accessroute-18207.cloudfunctions.net/api/api"
+        case .development, .staging, .production:
+            return "https://unopiatic-vonnie-compressibly.ngrok-free.dev"
         }
     }
 
@@ -125,6 +123,6 @@ enum AppConfig {
 
     // アプリ名
     static var appName: String {
-        Bundle.main.infoDictionary?["CFBundleName"] as? String ?? "AccessRoute"
+        Bundle.main.infoDictionary?["CFBundleName"] as? String ?? "フェスマップ"
     }
 }

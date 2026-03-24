@@ -67,8 +67,8 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <Text style={styles.title}>AccessRoute</Text>
-          <Text style={styles.subtitle}>バリアフリーナビ</Text>
+          <Text style={styles.title}>フェスマップ</Text>
+          <Text style={styles.subtitle}>学園祭コンシェルジュ</Text>
         </View>
 
         <View style={styles.form}>
