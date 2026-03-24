@@ -117,13 +117,21 @@ struct YolpChatResponse: Codable {
     let action: ShowOnMapAction?
 }
 
-/// AIによって推薦されたスポット情報
+/// AIによって推薦されたスポット情報（学園祭企画対応版）
 struct RecommendedSpot: Codable, Identifiable, Equatable {
     let id: String
     let name: String
     let reason: String
     let latitude: Double
     let longitude: Double
+    
+    // 学園祭用追加フィールド
+    var organization: String? = nil
+    var classification: String? = nil
+    var form: String? = nil
+    var location: String? = nil
+    var description: String? = nil
+    var detailedLocation: String? = nil
 }
 
 /// 地図表示をトリガーするアクション

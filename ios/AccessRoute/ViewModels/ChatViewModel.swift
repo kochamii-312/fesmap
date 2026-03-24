@@ -52,14 +52,14 @@ final class ChatViewModel: ObservableObject {
     }
     
     private func loadFestivalProjects() {
-        // 本来はサーバーから取得するが、今回は検証用にローカルファイルを読み込む（または手動で数件定義）
+        // 本来はサーバーから取得するが、今回は検証用にローカルファイルを読み込む
         // ここでは AIサーバーと同じデータをシミュレート
         self.allProjects = [
-            FestivalProject(projectId: "p001", name: "爆速たこ焼き", organization: "テニスサークル", description: "外はカリッと、中はトロッと！", classification: "stall", form: "stall", location: "stall_road", detailedLocation: "模擬店ロード B-12", latitude: 35.6048, longitude: 139.6845, isAccessible: true, tags: ["グルメ", "人気"], startTime: "10:00", endTime: "18:00"),
-            FestivalProject(projectId: "p002", name: "JAZZ Big Band Live", organization: "ジャズ研究会", description: "迫力あるビッグバンド演奏！", classification: "stage_event", form: "stage", location: "stage_area", detailedLocation: "メインステージ", latitude: 35.6055, longitude: 139.6835, isAccessible: true, tags: ["音楽", "ライブ"], startTime: "13:00", endTime: "14:30"),
-            FestivalProject(projectId: "p003", name: "VR体験：宇宙旅行", organization: "物理学研究会", description: "最新VRで宇宙の果てまで！", classification: "general", form: "experience", location: "b11", detailedLocation: "11棟 301教室", latitude: 35.6062, longitude: 139.6852, isAccessible: false, tags: ["体験", "科学"], startTime: "10:00", endTime: "17:00"),
-            FestivalProject(projectId: "p004", name: "古着チャリティセール", organization: "ボランティアサークル", description: "掘り出し物が見つかるかも！", classification: "general", form: "exhibit", location: "b12", detailedLocation: "12棟 1Fロビー", latitude: 35.6058, longitude: 139.6840, isAccessible: true, tags: ["ショッピング"], startTime: "11:00", endTime: "16:00"),
-            FestivalProject(projectId: "p005", name: "激辛カレー対決", organization: "激辛同好会", description: "あなたはどこまで耐えられるか…！？", classification: "stall", form: "stall", location: "ground", detailedLocation: "グラウンド 模擬店ブースC", latitude: 35.6042, longitude: 139.6828, isAccessible: true, tags: ["グルメ", "カレー"], startTime: "10:00", endTime: "18:00")
+            FestivalProject(projectId: "p001", name: "爆速たこ焼き", organization: "テニスサークル", description: "外はカリッと、中はトロッと！秘伝の出汁が自慢です。学生に大人気！", classification: "stall", form: "stall", location: "stall_road", detailedLocation: "模擬店ロード B-12", latitude: 35.6048, longitude: 139.6845, isAccessible: true, tags: ["グルメ", "粉もの", "人気"], startTime: "10:00", endTime: "18:00"),
+            FestivalProject(projectId: "p002", name: "JAZZ Big Band Live", organization: "ジャズ研究会", description: "迫力あるビッグバンドの生演奏をお楽しみください。スイングしようぜ！", classification: "stage_event", form: "stage", location: "stage_area", detailedLocation: "メインステージ", latitude: 35.6055, longitude: 139.6835, isAccessible: true, tags: ["音楽", "ライブ", "ステージ"], startTime: "13:00", endTime: "14:30"),
+            FestivalProject(projectId: "p003", name: "VR体験：宇宙旅行", organization: "物理学研究会", description: "最新のVR機器を使って、宇宙の果てまで旅をしよう！お子様でも楽しめます。", classification: "general", form: "experience", location: "b11", detailedLocation: "11棟 301教室", latitude: 35.5559487, longitude: 139.6523348, isAccessible: false, tags: ["体験", "科学", "最新技術"], startTime: "10:00", endTime: "17:00"),
+            FestivalProject(projectId: "p004", name: "古着チャリティセール", organization: "ボランティアサークル", description: "掘り出し物が見つかるかも！売上は寄付されます。", classification: "general", form: "exhibit", location: "b12", detailedLocation: "12棟 1Fロビー", latitude: 35.6058, longitude: 139.6840, isAccessible: true, tags: ["ショッピング", "チャリティ", "SDGs"], startTime: "11:00", endTime: "16:00"),
+            FestivalProject(projectId: "p005", name: "激辛カレー対決", organization: "激辛同好会", description: "あなたはどこまで耐えられるか…！？挑戦者求む！", classification: "stall", form: "stall", location: "ground", detailedLocation: "グラウンド 模擬店ブースC", latitude: 35.6042, longitude: 139.6828, isAccessible: true, tags: ["グルメ", "カレー", "激辛"], startTime: "10:00", endTime: "18:00")
         ]
     }
     
@@ -76,7 +76,13 @@ final class ChatViewModel: ObservableObject {
                 name: project.name,
                 reason: "\(project.detailedLocation)で実施中！",
                 latitude: project.latitude,
-                longitude: project.longitude
+                longitude: project.longitude,
+                organization: project.organization,
+                classification: project.classification,
+                form: project.form,
+                location: project.location,
+                description: project.description,
+                detailedLocation: project.detailedLocation
             )
         }
     }
@@ -113,21 +119,16 @@ final class ChatViewModel: ObservableObject {
                 }
             }
 
-            // AIサーバーへのリクエストとMapKit検索を並行実行
+            // AIサーバーへのリクエスト
             let conversationHistory = self.messages.map {
                 AIServerMessage(role: $0.role.rawValue, content: $0.content)
             }
             async let aiReplyTask = self.fetchAIReply(history: conversationHistory)
 
-            let queries = Self.extractSearchQueries(from: messageText)
-
-            // メッセージから場所名を検出してジオコーディング
+            // メッセージから場所名やキーワードを検出
             let detectedLocation = await self.detectLocation(from: messageText)
             let defaultLoc = LocationManager.defaultLocation
             let searchLocation = detectedLocation ?? currentLocation ?? defaultLoc
-            let locationLabel = detectedLocation != nil
-                ? Self.extractPlaceName(from: messageText) ?? "指定地点"
-                : "現在地"
             
             var allSpots: [RecommendedSpot] = []
             
@@ -144,9 +145,6 @@ final class ChatViewModel: ObservableObject {
                     }
                 }
             }
-            
-            // 従来のMapKit検索はバックアップとして残すか、または完全に置き換える
-            // 今回は学園祭仕様なので、MapKit検索は行わない（または限定的にする）
             
             // 重複除去
             var seen = Set<String>()
@@ -225,95 +223,46 @@ final class ChatViewModel: ObservableObject {
 
     // スポットの詳細を取得してチャットに表示
     func fetchSpotDetail(spot: RecommendedSpot) {
-        // 前の詳細取得タスクをキャンセル
-        detailTask?.cancel()
-
-        // ローディングメッセージ
+        // 学園祭企画の詳細を表示（サーバー通信なしで即座に応答）
+        var detailText = "【\(spot.name)】の情報を教えるね！\n\n"
+        
+        if let org = spot.organization {
+            detailText += "🏫 団体名: \(org)\n"
+        }
+        
+        let classificationLabel: String = {
+            switch spot.classification {
+            case "stage_event": return "ステージ企画"
+            case "stall": return "模擬店"
+            case "general": return "一般企画"
+            default: return spot.classification ?? "その他"
+            }
+        }()
+        detailText += "📌 区分: \(classificationLabel)\n"
+        
+        let formLabel: String = {
+            switch spot.form {
+            case "stage": return "ステージ"
+            case "stall": return "模擬店"
+            case "exhibit": return "展示"
+            case "experience": return "体験"
+            default: return spot.form ?? "その他"
+            }
+        }()
+        detailText += "🎭 形態: \(formLabel)\n"
+        
+        if let loc = spot.detailedLocation {
+            detailText += "📍 場所: \(loc)\n"
+        }
+        
+        if let desc = spot.description {
+            detailText += "\n💬 紹介:\n\(desc)\n"
+        }
+        
         messages.append(AppChatMessage(
             role: .assistant,
-            content: "「\(spot.name)」の詳細を調べています..."
+            content: detailText
         ))
-        isLoading = true
-
-        let taskId = UUID()
-        activeTaskId = taskId
-
-        detailTask = Task { [weak self] in
-            guard let self else { return }
-
-            defer {
-                if self.activeTaskId == taskId {
-                    self.isLoading = false
-                }
-            }
-
-            let coord = CLLocationCoordinate2D(
-                latitude: spot.latitude, longitude: spot.longitude
-            )
-
-            // Google Places API で詳細取得
-            let detail = await GooglePlacesService.fetchDetail(
-                name: spot.name, coordinate: coord
-            )
-
-            guard !Task.isCancelled else { return }
-
-            // ローディングメッセージを削除（IDではなくスポット名で特定）
-            let loadingText = "「\(spot.name)」の詳細を調べています..."
-            if let idx = self.messages.lastIndex(where: { $0.content == loadingText }) {
-                self.messages.remove(at: idx)
-            }
-
-            if let gd = detail {
-                // 詳細情報をAIが調べた形で表示
-                var info = "📍 **\(spot.name)** の詳細情報\n\n"
-
-                if let cuisine = gd.cuisineType {
-                    info += "🍽️ ジャンル: \(cuisine)\n"
-                }
-                if let rating = gd.rating {
-                    info += "⭐ 評価: \(String(format: "%.1f", rating))\n"
-                }
-                if let price = GooglePlacesService.priceLevelText(gd.priceLevel) {
-                    info += "💰 価格帯: \(price)\n"
-                }
-                if let openNow = gd.openNow {
-                    info += openNow ? "🟢 現在営業中\n" : "🔴 現在営業時間外\n"
-                }
-                if let wheelchair = gd.isWheelchairAccessible {
-                    info += wheelchair ? "♿ 車椅子対応入口あり\n" : "⚠️ 車椅子対応入口なし\n"
-                }
-                if let address = gd.address {
-                    info += "📮 \(address)\n"
-                }
-                if let phone = gd.phone {
-                    info += "📞 \(phone)\n"
-                }
-                if !gd.openingHours.isEmpty {
-                    info += "\n🕐 営業時間:\n"
-                    for hours in gd.openingHours {
-                        info += "  \(hours)\n"
-                    }
-                }
-                if let review = gd.review {
-                    info += "\n💬 レビュー:\n\(review)..."
-                }
-
-                self.messages.append(AppChatMessage(
-                    role: .assistant,
-                    content: info,
-                    spots: [spot],
-                    followupQuestion: "このお店への行き方を教えて",
-                    showOnMapAction: ShowOnMapAction(type: "show", spotIds: [spot.id])
-                ))
-            } else {
-                self.messages.append(AppChatMessage(
-                    role: .assistant,
-                    content: "「\(spot.name)」の詳細情報を取得できませんでした。",
-                    followupQuestion: "他のおすすめを教えて"
-                ))
-            }
-        }
     }
 
     // マップで表示
@@ -325,94 +274,26 @@ final class ChatViewModel: ObservableObject {
         ))
     }
 
-    // searchSpotsLocally は sendMessage() 内に統合済み
-
     // MARK: - 場所検出
 
     // メッセージから場所名を抽出
     nonisolated private static func extractPlaceName(from message: String) -> String? {
-        // 非地名ワードのブロックリスト
-        let nonPlaceWords = [
-            "静か", "ゆっくり", "のんびり", "車椅子", "車いす", "バリアフリー",
-            "ベビーカー", "落ち着", "広く", "狭い", "おしゃれ", "きれい",
-            "安い", "高い", "美味し", "楽し", "近く", "遠く",
-            "移動", "食べ", "飲み", "休み", "遊び", "買い物",
-            "カフェ", "レストラン", "トイレ", "エレベーター", "公園",
-            "図書館", "カラオケ", "体育館", "コンビニ", "病院",
-        ]
-
-        // 1. 既知の地名が含まれているかチェック（最優先）
-        let knownPlaces = [
-            "東京駅", "新宿駅", "渋谷駅", "池袋駅", "品川駅", "上野駅",
-            "秋葉原駅", "銀座駅", "六本木駅", "原宿駅", "表参道駅",
-            "恵比寿駅", "目黒駅", "浜松町駅", "横浜駅", "川崎駅",
-            "溝の口駅", "武蔵小杉駅", "二子玉川駅", "自由が丘駅",
-            "東京", "新宿", "渋谷", "池袋", "品川", "上野", "秋葉原",
-            "銀座", "六本木", "原宿", "表参道", "恵比寿", "目黒",
-            "浜松町", "横浜", "川崎", "溝の口", "武蔵小杉", "二子玉川",
-            "自由が丘", "大阪", "梅田", "難波", "京都", "名古屋",
-            "福岡", "札幌", "浅草", "お台場", "スカイツリー", "東京タワー",
-            "紀尾井町", "赤坂", "永田町", "大手町", "丸の内", "日本橋",
-            "神保町", "飯田橋", "四ツ谷", "市ヶ谷", "高田馬場",
-            "中野", "荻窪", "吉祥寺", "三鷹", "立川",
-        ]
-
-        // 長い名前から優先的にマッチ（「東京駅」が「東京」より先にマッチ）
-        let sortedPlaces = knownPlaces.sorted { $0.count > $1.count }
-        for place in sortedPlaces {
+        let knownPlaces = ["11棟", "12棟", "14棟", "グラウンド", "ステージ", "模擬店ロード"]
+        for place in knownPlaces {
             if message.contains(place) {
                 return place
             }
         }
-
-        // 2. 「〇〇駅」「〇〇区」「〇〇市」「〇〇町」パターン
-        let locationSuffixes = ["駅", "区", "市", "町", "村", "県"]
-        for suffix in locationSuffixes {
-            if let range = message.range(of: suffix) {
-                // suffix の前の文字列を取得（最大10文字）
-                let startIdx = message.index(range.lowerBound, offsetBy: -min(10, message.distance(from: message.startIndex, to: range.lowerBound)))
-                let before = String(message[startIdx..<range.lowerBound])
-                // 最後の助詞以降を地名として抽出
-                let components = before.components(separatedBy: CharacterSet(charactersIn: "のでをにはがとも"))
-                if let lastPart = components.last, !lastPart.isEmpty, lastPart.count >= 2 {
-                    let placeName = lastPart + suffix
-                    // ブロックリストチェック
-                    if !nonPlaceWords.contains(where: { placeName.contains($0) }) {
-                        return placeName
-                    }
-                }
-            }
-        }
-
-        // 3. 「〇〇周辺」「〇〇付近」パターン（これは地名の可能性が高い）
-        let locationPatterns = ["周辺", "付近", "あたり", "近辺"]
-        for pattern in locationPatterns {
-            if let range = message.range(of: pattern) {
-                let before = String(message[message.startIndex..<range.lowerBound])
-                    .trimmingCharacters(in: .whitespaces)
-                // 助詞で分割して最後の部分を取得
-                let parts = before.components(separatedBy: CharacterSet(charactersIn: "のでをにはがとも"))
-                if let lastPart = parts.last, lastPart.count >= 2 {
-                    if !nonPlaceWords.contains(where: { lastPart.contains($0) }) {
-                        return lastPart
-                    }
-                }
-            }
-        }
-
         return nil
     }
 
     // 場所名をジオコーディングして座標を取得
     private func detectLocation(from message: String) async -> CLLocationCoordinate2D? {
         guard let placeName = Self.extractPlaceName(from: message) else { return nil }
-
-        do {
-            let latLng = try await GeocodingService.shared.geocode(placeName)
-            return CLLocationCoordinate2D(latitude: latLng.lat, longitude: latLng.lng)
-        } catch {
-            return nil
-        }
+        // 学園祭内の座標は固定または検索結果から取得
+        if placeName == "11棟" { return CLLocationCoordinate2D(latitude: 35.6062, longitude: 139.6852) }
+        if placeName == "ステージ" { return CLLocationCoordinate2D(latitude: 35.6055, longitude: 139.6835) }
+        return nil
     }
 
     // MARK: - キーワード抽出
@@ -420,211 +301,6 @@ final class ChatViewModel: ObservableObject {
     private struct SearchQuery {
         let keyword: String
         let reason: String
-    }
-
-    nonisolated private static func extractSearchQueries(from message: String) -> [SearchQuery] {
-        var queries: [SearchQuery] = []
-
-        // 模擬店・食べ物関連
-        let foodKeywords = ["模擬店", "屋台", "食べ", "飲", "たこ焼き", "カレー", "グルメ", "ランチ", "ご飯"]
-        if foodKeywords.contains(where: { message.contains($0) }) {
-            queries.append(SearchQuery(keyword: "模擬店", reason: "模擬店（食べ物・飲み物）"))
-        }
-
-        // ステージ・ライブ関連
-        let stageKeywords = ["ステージ", "ライブ", "演奏", "音楽", "パフォーマンス", "ダンス", "JAZZ"]
-        if stageKeywords.contains(where: { message.contains($0) }) {
-            queries.append(SearchQuery(keyword: "ステージ", reason: "ステージ企画・パフォーマンス"))
-        }
-
-        // ラーメン
-        if message.contains("ラーメン") || message.contains("らーめん") {
-            queries.append(SearchQuery(keyword: "ラーメン", reason: "ラーメン店"))
-        }
-
-        // 寿司
-        if message.contains("寿司") || message.contains("すし") || message.contains("鮨") {
-            queries.append(SearchQuery(keyword: "寿司", reason: "寿司屋"))
-        }
-
-        // トイレ関連
-        let toiletKeywords = ["トイレ", "お手洗い", "化粧室", "バリアフリー"]
-        if toiletKeywords.contains(where: { message.contains($0) }) {
-            queries.append(SearchQuery(keyword: "多目的トイレ", reason: "バリアフリートイレ"))
-        }
-
-        // 公園・自然
-        let parkKeywords = ["公園", "緑", "自然", "散歩", "桜"]
-        if parkKeywords.contains(where: { message.contains($0) }) {
-            queries.append(SearchQuery(keyword: "公園", reason: "公園・自然スポット"))
-        }
-
-        // カラオケ
-        if message.contains("カラオケ") {
-            queries.append(SearchQuery(keyword: "カラオケ", reason: "カラオケ"))
-        }
-
-        // 図書館
-        if message.contains("図書館") || message.contains("本") {
-            queries.append(SearchQuery(keyword: "図書館", reason: "図書館"))
-        }
-
-        // ジム・体育館
-        let gymKeywords = ["ジム", "体育館", "運動", "スポーツ", "フィットネス"]
-        if gymKeywords.contains(where: { message.contains($0) }) {
-            queries.append(SearchQuery(keyword: "スポーツジム", reason: "ジム・体育館"))
-        }
-
-        // 車椅子対応
-        let wheelchairKeywords = ["車椅子", "車いす", "くるまいす", "wheelchair"]
-        if wheelchairKeywords.contains(where: { message.contains($0) }) {
-            // 車椅子 + 他のキーワードがあればそのまま、なければバリアフリー施設
-            if queries.isEmpty {
-                queries.append(SearchQuery(keyword: "バリアフリー", reason: "車椅子対応施設"))
-            }
-            // 既存クエリに「バリアフリー」を追加
-            for i in queries.indices {
-                queries[i] = SearchQuery(
-                    keyword: queries[i].keyword + " バリアフリー",
-                    reason: queries[i].reason + "（車椅子対応）"
-                )
-            }
-        }
-
-        // エレベーター
-        if message.contains("エレベーター") {
-            queries.append(SearchQuery(keyword: "エレベーター", reason: "エレベーター"))
-        }
-
-        // 自然・景色関連（地名内の「ガーデン」等を除外するため、前後の文脈で判定）
-        let natureKeywords = ["桜", "花見", "紅葉", "自然", "緑"]
-        if natureKeywords.contains(where: { message.contains($0) }) {
-            queries.append(SearchQuery(keyword: "公園 桜", reason: "桜・自然スポット"))
-            queries.append(SearchQuery(keyword: "庭園", reason: "庭園"))
-        }
-        // 「庭園」は単独で出てきた場合のみ（「ガーデンテラス」等の地名は除外）
-        if message.contains("庭園") && !message.contains("ガーデン") {
-            queries.append(SearchQuery(keyword: "庭園", reason: "庭園"))
-        }
-
-        // 静か・落ち着く関連（具体的なカテゴリが未指定の場合のみ）
-        let quietKeywords = ["静か", "落ち着", "ゆっくり", "のんびり", "穏やか", "癒し"]
-        if quietKeywords.contains(where: { message.contains($0) }) && queries.isEmpty {
-            queries.append(SearchQuery(keyword: "公園", reason: "静かな場所"))
-            queries.append(SearchQuery(keyword: "図書館", reason: "静かな施設"))
-            queries.append(SearchQuery(keyword: "カフェ 静か", reason: "落ち着けるカフェ"))
-        }
-
-        // 観光・遊び関連（具体的なカテゴリが未指定の場合のみ）
-        let tourKeywords = ["観光", "観る", "遊ぶ", "遊び", "デート", "散策"]
-        if tourKeywords.contains(where: { message.contains($0) }) && queries.isEmpty {
-            queries.append(SearchQuery(keyword: "観光", reason: "観光スポット"))
-            queries.append(SearchQuery(keyword: "公園", reason: "散策スポット"))
-        }
-
-        // 買い物関連
-        let shopKeywords = ["買い物", "ショッピング", "お土産", "雑貨", "服", "本屋"]
-        if shopKeywords.contains(where: { message.contains($0) }) {
-            queries.append(SearchQuery(keyword: "ショッピング", reason: "買い物スポット"))
-        }
-
-        // コンビニ
-        if message.contains("コンビニ") {
-            queries.append(SearchQuery(keyword: "コンビニ", reason: "コンビニ"))
-        }
-
-        // 薬局・ドラッグストア
-        let pharmacyKeywords = ["薬局", "ドラッグストア", "薬"]
-        if pharmacyKeywords.contains(where: { message.contains($0) }) {
-            queries.append(SearchQuery(keyword: "ドラッグストア", reason: "薬局"))
-        }
-
-        // 病院・クリニック
-        let hospitalKeywords = ["病院", "クリニック", "医者", "医院"]
-        if hospitalKeywords.contains(where: { message.contains($0) }) {
-            queries.append(SearchQuery(keyword: "病院", reason: "医療施設"))
-        }
-
-        // 何も一致しなかった場合は自然言語からキーワードを抽出して検索
-        if queries.isEmpty {
-            // メッセージからキーワードを分解して検索
-            let extracted = extractNaturalKeywords(from: message)
-            for keyword in extracted {
-                queries.append(SearchQuery(keyword: keyword, reason: "「\(keyword)」の検索結果"))
-            }
-        }
-
-        // それでも空なら全文で検索
-        if queries.isEmpty {
-            queries.append(SearchQuery(keyword: message, reason: "検索結果"))
-        }
-
-        return queries
-    }
-
-    // 自然言語からキーワードを抽出
-    nonisolated private static func extractNaturalKeywords(from message: String) -> [String] {
-        // 不要な助詞・接続詞を除去してキーワードを抽出
-        let stopWords = ["が", "を", "に", "は", "の", "で", "と", "も", "な", "い",
-                         "たい", "ほしい", "ある", "いる", "できる", "ない", "ます",
-                         "です", "する", "した", "して", "れる", "場所", "ところ",
-                         "見れる", "行ける", "探して", "教えて", "知りたい", "おすすめ"]
-
-        var cleaned = message
-        for word in stopWords {
-            cleaned = cleaned.replacingOccurrences(of: word, with: " ")
-        }
-
-        let keywords = cleaned.components(separatedBy: .whitespaces)
-            .filter { $0.count >= 2 }
-
-        return Array(keywords.prefix(3))
-    }
-
-    // MARK: - MKLocalSearch
-
-    private func searchMapKit(
-        query: String,
-        near coordinate: CLLocationCoordinate2D,
-        reason: String
-    ) async -> [RecommendedSpot] {
-        let request = MKLocalSearch.Request()
-        request.naturalLanguageQuery = query
-        request.region = MKCoordinateRegion(
-            center: coordinate,
-            latitudinalMeters: 1000,
-            longitudinalMeters: 1000
-        )
-        request.resultTypes = .pointOfInterest
-
-        let search = MKLocalSearch(request: request)
-        let searchReason = reason
-
-        // MKLocalSearch.Responseはnon-Sendableのためコールバック版を使用
-        let items: [(name: String, lat: Double, lng: Double)] = await withCheckedContinuation { continuation in
-            search.start { response, _ in
-                let results = response?.mapItems.prefix(5).compactMap { item -> (String, Double, Double)? in
-                    guard let name = item.name else { return nil }
-                    let c = item.placemark.coordinate
-                    return (name, c.latitude, c.longitude)
-                } ?? []
-                continuation.resume(returning: results)
-            }
-        }
-
-        do {
-            return items.map { item in
-                RecommendedSpot(
-                    id: UUID().uuidString,
-                    name: item.name,
-                    reason: searchReason,
-                    latitude: item.lat,
-                    longitude: item.lng
-                )
-            }
-        } catch {
-            return []
-        }
     }
 
     // MARK: - フォローアップ質問生成
