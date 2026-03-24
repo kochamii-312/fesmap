@@ -76,7 +76,7 @@ enum AppConfig {
     static var aiServerURL: String {
         switch environment {
         case .development, .staging, .production:
-            return "https://unopiatic-vonnie-compressibly.ngrok-free.dev"
+            return "https://fesmap.onrender.com"
         }
     }
 
