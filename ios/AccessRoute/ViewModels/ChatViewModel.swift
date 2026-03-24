@@ -174,6 +174,30 @@ final class ChatViewModel: ObservableObject {
             // AI応答を取得（サーバー未起動ならnil）
             let aiReply = await aiReplyTask
 
+            // AIの返信内容からも企画名を検索してカードを補完する
+            if let reply = aiReply {
+                for project in self.allProjects {
+                    if reply.contains(project.name) {
+                        // 重複を避けて追加
+                        if !allSpots.contains(where: { $0.id == project.projectId }) {
+                            allSpots.append(RecommendedSpot(
+                                id: project.projectId,
+                                name: project.name,
+                                reason: "\(project.detailedLocation)で実施中！",
+                                latitude: project.latitude,
+                                longitude: project.longitude,
+                                organization: project.organization,
+                                classification: project.classification,
+                                form: project.form,
+                                location: project.location,
+                                description: project.description,
+                                detailedLocation: project.detailedLocation
+                            ))
+                        }
+                    }
+                }
+            }
+
             // AI応答があればそれを使い、なければ従来テンプレートにフォールバック
             if let aiReply = aiReply {
                 let spotIds = allSpots.map(\.id)

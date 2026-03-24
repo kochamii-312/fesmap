@@ -85,7 +85,7 @@ enum AppConfig {
     }
 
     // APIタイムアウト（秒）
-    static let apiTimeout: TimeInterval = 60
+    static let apiTimeout: TimeInterval = 120
 
     // SSEストリーミングタイムアウト（秒）
     static let sseTimeout: TimeInterval = 120
